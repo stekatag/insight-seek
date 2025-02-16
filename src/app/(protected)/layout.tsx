@@ -11,14 +11,14 @@ export default function SidebarLayout({ children }: Props) {
     <SidebarProvider>
       <AppSidebar />
       <main className="m-2 w-full">
-        <div className="flex items-center gap-2 rounded-md border border-sidebar-border px-4 py-2 shadow">
+        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar px-4 py-2 shadow">
           {/* <SearchBar/> */}
           <div className="ml-auto"></div>
           <UserButton />
         </div>
         <div className="h-4"></div>
         {/* main content */}
-        <div className="rounde-md h-[calc(100vh-6rem)] overflow-y-scroll border border-sidebar-border bg-sidebar p-4 shadow">
+        <div className="rounde-md min-h-[calc(100vh-6rem)] rounded-md border border-sidebar-border bg-sidebar p-4 shadow">
           {children}
         </div>
       </main>
