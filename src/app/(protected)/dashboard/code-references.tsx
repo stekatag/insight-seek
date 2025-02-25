@@ -1,57 +1,71 @@
 "use client";
 
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsibleContent } from "@/components/collapsible-content";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { getLanguageFromFilename } from "@/utils/code-language";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import React from "react";
 
-type Props = {
-  filesReferences: {
-    fileName: string;
-    sourceCode: string;
-  }[];
+type FileReference = {
+  fileName: string;
+  sourceCode: string;
 };
 
-export default function CodeReferences({ filesReferences }: Props) {
-  const [tab, setTab] = React.useState(filesReferences[0]?.fileName);
+type CodeReferencesProps = {
+  filesReferences: FileReference[];
+};
+
+export default function CodeReferences({
+  filesReferences,
+}: CodeReferencesProps) {
+  const [activeTab, setActiveTab] = useState(
+    filesReferences[0]?.fileName || "",
+  );
 
   if (!filesReferences.length) return null;
 
   return (
-    <div className="max-w-[70vw]">
-      <Tabs
-        defaultValue={tab}
-        value={tab}
-        onValueChange={(value) => setTab(value)}
-      >
-        <div className="scrollbar-hide flex gap-2 overflow-scroll rounded-md bg-gray-200 p-1">
-          {filesReferences.map((file) => (
-            <button
-              key={file.fileName}
-              onClick={() => setTab(file.fileName)}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                tab === file.fileName
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {file.fileName}
-            </button>
-          ))}
-        </div>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="scrollbar-hide mb-2 flex gap-2 overflow-auto rounded-md border bg-muted p-1 shadow-sm">
         {filesReferences.map((file) => (
-          <TabsContent
+          <button
             key={file.fileName}
-            value={file.fileName}
-            className="max-h-[40vh] max-w-7xl overflow-scroll rounded-md"
+            onClick={() => setActiveTab(file.fileName)}
+            className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              activeTab === file.fileName
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
           >
-            <SyntaxHighlighter language="typescript" style={atomDark}>
-              {file.sourceCode}
-            </SyntaxHighlighter>
-          </TabsContent>
+            {file.fileName.split("/").pop()}
+          </button>
         ))}
-      </Tabs>
-    </div>
+      </div>
+      {filesReferences.map((file) => (
+        <TabsContent key={file.fileName} value={file.fileName} className="mt-0">
+          <CollapsibleContent
+            maxHeight={400}
+            content={
+              <div className="rounded-lg border">
+                <div className="rounded-lg rounded-b-none bg-muted px-4 py-1.5 text-sm">
+                  {file.fileName}
+                </div>
+                <SyntaxHighlighter
+                  language={getLanguageFromFilename(file.fileName)}
+                  style={atomDark}
+                  showLineNumbers
+                  customStyle={{
+                    margin: 0,
+                  }}
+                >
+                  {file.sourceCode}
+                </SyntaxHighlighter>
+              </div>
+            }
+          />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }

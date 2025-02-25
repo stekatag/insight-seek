@@ -13,7 +13,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {project?.id}
       <div className="flex-items-center flex-wrap justify-between gap-y-4 space-y-4">
         {/* GitHub Repo Link */}
         <div className="w-fit rounded-md bg-primary px-4 py-3">

@@ -1,24 +1,32 @@
 "use client";
 
-import MDEditor from "@uiw/react-md-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Textarea } from "@/components/ui/textarea";
 import useProject from "@/hooks/use-project";
-import { Code, Sparkles } from "lucide-react";
-import Image from "next/image";
+import { Sparkles } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { askQuestion } from "./actions";
 import { readStreamableValue } from "ai/rsc";
 import CodeReferences from "./code-references";
 import { api } from "@/trpc/react";
 import { toast } from "sonner";
+import useRefetch from "@/hooks/use-refetch";
+import { useIsMobile } from "@/hooks/use-mobile";
+import MarkdownRenderer from "@/components/markdown-renderer";
+import { CollapsibleContent } from "@/components/collapsible-content";
 
 export default function AskQuestionCard() {
   const { project } = useProject();
@@ -30,6 +38,8 @@ export default function AskQuestionCard() {
   >([]);
   const [answer, setAnswer] = useState("");
   const saveAnswer = api.project.saveAnswer.useMutation();
+  const refetch = useRefetch();
+  const isMobile = useIsMobile();
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     setAnswer("");
@@ -52,58 +62,120 @@ export default function AskQuestionCard() {
     setLoading(false);
   }
 
+  const handleSaveAnswer = () => {
+    if (!project?.id) return;
+
+    saveAnswer.mutate(
+      {
+        projectId: project.id,
+        question,
+        answer,
+        filesReferences,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Answer saved successfully");
+          refetch();
+        },
+        onError: () => {
+          toast.error("Failed to save answer");
+        },
+      },
+    );
+  };
+
+  const AnswerContent = (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Answer</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <CollapsibleContent
+          maxHeight={500}
+          content={
+            <MarkdownRenderer
+              content={answer}
+              className="rounded-lg bg-white shadow-sm dark:bg-gray-800"
+            />
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[80vw]" data-color-mode="light">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <DialogTitle>
-                <Image
-                  src="/logo.svg"
-                  alt="InsightSeek"
-                  width={40}
-                  height={40}
-                />
-              </DialogTitle>
+      {isMobile ? (
+        <Drawer open={open} onOpenChange={setOpen}>
+          <DrawerContent>
+            <div className="max-h-[85vh] overflow-y-auto px-4 pb-6">
+              <DrawerHeader className="pl-0 text-left">
+                <DrawerTitle className="text-muted-foreground">
+                  {question}
+                </DrawerTitle>
+              </DrawerHeader>
+              {AnswerContent}
+
+              {filesReferences.length > 0 && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Code References</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CodeReferences filesReferences={filesReferences} />
+                  </CardContent>
+                </Card>
+              )}
+              <div className="mt-4 flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={handleSaveAnswer}
+                  disabled={saveAnswer.isPending}
+                >
+                  Save
+                </Button>
+                <Button type="button" onClick={() => setOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent className="overflow-y-auto sm:max-w-[80vw]">
+            <SheetHeader>
+              <SheetTitle className="text-muted-foreground">
+                {question}
+              </SheetTitle>
+            </SheetHeader>
+            {AnswerContent}
+
+            {filesReferences.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle>Code References</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CodeReferences filesReferences={filesReferences} />
+                </CardContent>
+              </Card>
+            )}
+            <div className="mt-4 flex justify-between">
               <Button
                 variant="outline"
+                onClick={handleSaveAnswer}
                 disabled={saveAnswer.isPending}
-                onClick={() =>
-                  saveAnswer.mutate(
-                    {
-                      projectId: project?.id ?? "",
-                      question,
-                      answer,
-                      filesReferences,
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Answer saved successfully");
-                      },
-                      onError: () => {
-                        toast.error("Failed to save answer");
-                      },
-                    },
-                  )
-                }
               >
                 Save
               </Button>
+              <Button type="button" onClick={() => setOpen(false)}>
+                Close
+              </Button>
             </div>
-          </DialogHeader>
-
-          <MDEditor.Markdown
-            source={answer}
-            className="!h-full max-h-[40vh] max-w-[70vw] overflow-scroll"
-          />
-          <CodeReferences filesReferences={filesReferences} />
-
-          <Button type="button" onClick={() => setOpen(false)}>
-            Close
-          </Button>
-        </DialogContent>
-      </Dialog>
+          </SheetContent>
+        </Sheet>
+      )}
 
       <Card className="relative col-span-1 sm:col-span-3">
         <CardHeader>
