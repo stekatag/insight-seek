@@ -77,8 +77,9 @@ export default function AskQuestionCard() {
           toast.success("Answer saved successfully");
           refetch();
         },
-        onError: () => {
+        onError: (error) => {
           toast.error("Failed to save answer");
+          console.error(error);
         },
       },
     );

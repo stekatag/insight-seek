@@ -38,6 +38,7 @@ model Project {
     commits        Commit[]
     SourceCodeEmbedding SourceCodeEmbedding[]
     savedQuestions Question[]
+    meetings Meeting[]
 }
 
 model UserToProject {
@@ -63,6 +64,52 @@ model SourceCodeEmbedding {
 
     projectId String
     project  Project @relation(fields: [projectId], references: [id])
+}
+
+model Meeting {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    name String
+
+    meetingUrl String // Firebase storage URL
+
+    projectId String
+    project  Project @relation(fields: [projectId], references: [id])
+
+    status MeetingStatus @default(PROCESSING)
+
+    issues Issue[]
+    meetingEmbeddings MeetingEmbedding[]
+}
+
+model MeetingEmbedding {
+    id        String                      @id @default(cuid())
+    embedding Unsupported("vector(768)")?
+    content   String?
+    meetingId String
+    meeting   Meeting                     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    start String
+    end String
+    gist String
+    headline String
+    summary String
+
+    meetingId String
+    meeting Meeting @relation(fields: [meetingId], references: [id])
+}
+
+enum MeetingStatus {
+    PROCESSING
+    COMPLETED
 }
 
 model Question {

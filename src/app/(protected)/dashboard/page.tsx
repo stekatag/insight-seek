@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import CommitLog from "./commit-log";
 import AskQuestionCard from "./ask-question-card";
+import MeetingCard from "./meeting-card";
 
 export default function DashboardPage() {
   const { project } = useProject();
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
         <AskQuestionCard />
-        MeetingCard
+        <MeetingCard />
       </div>
 
       <CommitLog />

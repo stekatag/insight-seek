@@ -31,8 +31,9 @@ export default function CreatePage() {
           refetch();
           reset();
         },
-        onError: () => {
+        onError: (error) => {
           toast.error("Failed to create project");
+          console.error(error);
         },
       },
     );
