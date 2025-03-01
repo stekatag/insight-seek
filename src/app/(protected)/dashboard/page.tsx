@@ -8,13 +8,16 @@ import { ExternalLink } from "lucide-react";
 import CommitLog from "./commit-log";
 import AskQuestionCard from "./ask-question-card";
 import MeetingCard from "./meeting-card";
+import ArchiveButton from "./archive-button";
+import InviteButton from "./invite-button";
+import TeamMembers from "./team-members";
 
 export default function DashboardPage() {
   const { project } = useProject();
 
   return (
     <div className="space-y-6">
-      <div className="flex-items-center flex-wrap justify-between gap-y-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-y-4">
         {/* GitHub Repo Link */}
         <div className="w-fit rounded-md bg-primary px-4 py-3">
           <div className="flex items-center">
@@ -35,7 +38,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          TeamMembers InviteButton ArchiveButton
+          <TeamMembers />
+          <InviteButton />
+          <ArchiveButton />
         </div>
       </div>
 

@@ -24,6 +24,7 @@ model User {
 
     userToProjects UserToProject[]
     questionsAsked Question[]
+    stripeTransactions StripeTransaction[]
 }
 
 model Project {
@@ -144,4 +145,15 @@ model Commit {
     commitDate    DateTime
     // AI Summary
     summary       String
+}
+
+model StripeTransaction {
+    id       String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id])
+    
+    credits Int
 }
