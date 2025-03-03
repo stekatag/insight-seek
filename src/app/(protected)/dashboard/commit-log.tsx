@@ -2,15 +2,30 @@
 
 import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import useProject from "@/hooks/use-project";
 import { formatDistanceToNow } from "date-fns";
+import { useEffect } from "react";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
-  const { data: commits } = api.project.getCommits.useQuery({ projectId });
-  if (!commits) return null;
+  const { data: commits, refetch } = api.project.getCommits.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      refetchInterval: 15000, // Refetch every 15 seconds to get updated summaries
+    },
+  );
+
+  // Refetch when component mounts to ensure we have the latest data
+  useEffect(() => {
+    if (projectId) {
+      refetch();
+    }
+  }, [projectId, refetch]);
+
+  if (!commits || commits.length === 0) return null;
 
   return (
     <>
@@ -62,9 +77,17 @@ export default function CommitLog() {
               <span className="mb-1 flex items-center gap-1 text-xs text-primary/80">
                 <Sparkles className="size-4" /> AI Commit Summary
               </span>
-              <pre className="whitespace-pre-wrap text-sm leading-6 text-gray-600">
-                {commit.summary}
-              </pre>
+
+              {commit.summary === "Analyzing commit..." ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Generating summary...</span>
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm leading-6 text-gray-600">
+                  {commit.summary || "Summary unavailable"}
+                </pre>
+              )}
             </div>
           </li>
         ))}

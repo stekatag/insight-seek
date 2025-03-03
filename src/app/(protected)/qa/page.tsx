@@ -19,6 +19,10 @@ import {
 } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { QuestionView } from "@/app/(protected)/qa/question-view";
+import {
+  NoProjectEmptyState,
+  NoQuestionsEmptyState,
+} from "@/components/empty-states";
 
 type FileReference = {
   fileName: string;
@@ -26,8 +30,17 @@ type FileReference = {
 };
 
 export default function QAPage() {
-  const { projectId } = useProject();
-  const { data: questions } = api.project.getAnswers.useQuery({ projectId });
+  const { project, projectId } = useProject();
+  const hasProject = !!project;
+
+  const { data: questions, isLoading } = api.project.getAnswers.useQuery(
+    { projectId },
+    {
+      enabled: hasProject, // Only fetch if there's a project
+      staleTime: 0, // Don't use cached data from other sessions/projects
+    },
+  );
+
   const isMobile = useIsMobile();
 
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -38,6 +51,24 @@ export default function QAPage() {
     setQuestionIndex(idx);
     setIsOpen(true);
   };
+
+  // Show loading state
+  if (hasProject && isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        Loading questions...
+      </div>
+    );
+  }
+
+  // Show empty state when no project exists
+  if (!hasProject) {
+    return (
+      <div className="space-y-6">
+        <NoProjectEmptyState type="questions" />
+      </div>
+    );
+  }
 
   const QuestionsList = (
     <div className="flex flex-col gap-2">
@@ -85,8 +116,10 @@ export default function QAPage() {
   return (
     <>
       <AskQuestionCard />
+
       <h2 className="mb-2 mt-4 text-xl font-semibold">Saved Questions</h2>
-      {QuestionsList}
+
+      {questions?.length === 0 ? <NoQuestionsEmptyState /> : QuestionsList}
 
       {isMobile ? (
         <Drawer open={isOpen && !!question} onOpenChange={setIsOpen}>

@@ -30,14 +30,9 @@ type Props = {
 };
 
 export default function IssuesList({ meetingId }: Props) {
-  const { data: meeting, isLoading } = api.project.getMeetingById.useQuery(
-    {
-      meetingId,
-    },
-    {
-      refetchInterval: 4000,
-    },
-  );
+  const { data: meeting, isLoading } = api.project.getMeetingById.useQuery({
+    meetingId,
+  });
 
   if (isLoading || !meeting) return <div>Loading...</div>;
 
@@ -132,7 +127,7 @@ function IssueCard({
                   <>
                     <p className="mt-2 text-xs font-semibold">Answer</p>
                     <CollapsibleContent
-                      maxHeight={500}
+                      maxHeight={400}
                       content={
                         <MarkdownRenderer
                           content={answer}

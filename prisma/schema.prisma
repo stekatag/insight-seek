@@ -25,6 +25,7 @@ model User {
     userToProjects UserToProject[]
     questionsAsked Question[]
     stripeTransactions StripeTransaction[]
+    gitHubToken UserGitHubToken?
 }
 
 model Project {
@@ -53,6 +54,16 @@ model UserToProject {
     project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
     @@unique([userId, projectId])
+}
+
+model UserGitHubToken {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    userId    String   @unique
+    token     String
+
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SourceCodeEmbedding {
@@ -143,8 +154,10 @@ model Commit {
     commitAuthorName String
     commitAuthorAvatar String
     commitDate    DateTime
-    // AI Summary
-    summary       String
+    // AI Summary - now optional to fix insertion errors
+    summary       String?
+
+    @@unique([projectId, commitHash])
 }
 
 model StripeTransaction {

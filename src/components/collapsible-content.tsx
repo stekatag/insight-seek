@@ -49,6 +49,7 @@ export function CollapsibleContent({
         >
           <Button
             variant="ghost"
+            type="button"
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-1 border bg-muted text-muted-foreground shadow-md hover:text-foreground"
