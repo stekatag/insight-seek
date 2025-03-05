@@ -3,10 +3,9 @@ import { createTRPCRouter, protectedProdecure } from "../trpc";
 import { pullCommits } from "@/lib/github";
 import { checkCredits, indexGithubRepo } from "@/lib/github-loader";
 import { validateGitHubRepo } from "@/lib/github-validator";
-import { calculateMeetingCredits } from "@/lib/credits";
 
 export const projectRouter = createTRPCRouter({
-  // Add the new validation procedure
+  // Validate GitHub repository
   validateGitHubRepo: protectedProdecure
     .input(
       z.object({
@@ -18,6 +17,7 @@ export const projectRouter = createTRPCRouter({
       return await validateGitHubRepo(input.githubUrl, input.githubToken);
     }),
 
+  // Create a new project
   createProject: protectedProdecure
     .input(
       z.object({
@@ -109,6 +109,7 @@ export const projectRouter = createTRPCRouter({
       return project;
     }),
 
+  // Get all projects for the current user
   getProjects: protectedProdecure.query(async ({ ctx }) => {
     return await ctx.db.project.findMany({
       where: {
@@ -121,143 +122,79 @@ export const projectRouter = createTRPCRouter({
       },
     });
   }),
-  getCommits: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      // Start commits pull in the background without waiting for it
-      pullCommits(input.projectId).catch((err) =>
-        console.error(`Background commit pull failed: ${err}`),
-      );
 
-      // Immediately return existing commits
-      return await ctx.db.commit.findMany({
-        where: { projectId: input.projectId },
-        orderBy: { commitDate: "desc" },
-      });
-    }),
-  saveAnswer: protectedProdecure
-    .input(
-      z.object({
-        projectId: z.string(),
-        question: z.string(),
-        answer: z.string(),
-        filesReferences: z.any(),
-      }),
-    )
+  // Delete a project and all its related data
+  deleteProject: protectedProdecure
+    .input(z.object({ projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return await ctx.db.question.create({
-        data: {
-          answer: input.answer,
-          filesReferences: input.filesReferences,
+      // First, verify the user has permission to delete this project
+      const projectAccess = await ctx.db.userToProject.findFirst({
+        where: {
           projectId: input.projectId,
-          question: input.question,
           userId: ctx.user.userId!,
         },
       });
-    }),
-  getAnswers: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.question.findMany({
-        where: { projectId: input.projectId },
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-      });
-    }),
-  uploadMeeting: protectedProdecure
-    .input(
-      z.object({
-        projectId: z.string(),
-        meetingUrl: z.string(),
-        name: z.string(),
-        durationMinutes: z.number().int().positive(),
-        creditsToCharge: z.number().int().positive(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      // Check if user has enough credits
-      const user = await ctx.db.user.findUnique({
-        where: { id: ctx.user.userId! },
-        select: { credits: true },
-      });
 
-      if (!user) {
-        throw new Error("User not found");
+      if (!projectAccess) {
+        throw new Error("You don't have permission to delete this project");
       }
 
-      if ((user.credits || 0) < input.creditsToCharge) {
-        throw new Error("Insufficient credits");
-      }
-
-      // Create meeting and deduct credits in a transaction
-      const meeting = await ctx.db.$transaction(async (tx) => {
-        // Deduct credits
-        await tx.user.update({
-          where: { id: ctx.user.userId! },
-          data: { credits: { decrement: input.creditsToCharge } },
+      // Delete project in a transaction to ensure all related data is deleted
+      return await ctx.db.$transaction(async (tx) => {
+        // Delete meetings and related data
+        const meetings = await tx.meeting.findMany({
+          where: { projectId: input.projectId },
+          select: { id: true },
         });
 
-        // Create the meeting
-        const meeting = await tx.meeting.create({
-          data: {
-            meetingUrl: input.meetingUrl,
-            projectId: input.projectId,
-            name: input.name,
-            status: "PROCESSING",
-          },
+        for (const meeting of meetings) {
+          await tx.meetingEmbedding.deleteMany({
+            where: { meetingId: meeting.id },
+          });
+
+          await tx.issue.deleteMany({
+            where: { meetingId: meeting.id },
+          });
+        }
+
+        await tx.meeting.deleteMany({
+          where: { projectId: input.projectId },
         });
 
-        return meeting;
-      });
+        // Delete questions
+        await tx.question.deleteMany({
+          where: { projectId: input.projectId },
+        });
 
-      return meeting;
-    }),
-  getMeetings: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.meeting.findMany({
-        where: { projectId: input.projectId },
-        include: { issues: true },
+        // Delete code embeddings
+        await tx.sourceCodeEmbedding.deleteMany({
+          where: { projectId: input.projectId },
+        });
+
+        // Delete commits
+        await tx.commit.deleteMany({
+          where: { projectId: input.projectId },
+        });
+
+        // Delete user to project relationships
+        await tx.userToProject.deleteMany({
+          where: { projectId: input.projectId },
+        });
+
+        // Finally, delete the project itself
+        return await tx.project.delete({
+          where: { id: input.projectId },
+        });
       });
     }),
-  deleteMeeting: protectedProdecure
-    .input(z.object({ meetingId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      return await ctx.db.meeting.delete({ where: { id: input.meetingId } });
-    }),
-  getMeetingById: protectedProdecure
-    .input(z.object({ meetingId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.meeting.findUnique({
-        where: { id: input.meetingId },
-        include: { issues: true },
-      });
-    }),
-  archiveProject: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      return await ctx.db.project.update({
-        where: { id: input.projectId },
-        data: { deletedAt: new Date() },
-      });
-    }),
-  getTeamMembers: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.userToProject.findMany({
-        where: { projectId: input.projectId },
-        include: { user: true },
-      });
-    }),
-  getMyCredits: protectedProdecure.query(async ({ ctx }) => {
-    return await ctx.db.user.findUnique({
-      where: { id: ctx.user.userId! },
-      select: { credits: true },
-    });
-  }),
+
+  // Check required credits for a GitHub repository
   checkCredits: protectedProdecure
     .input(
-      z.object({ githubUrl: z.string(), githubToken: z.string().optional() }),
+      z.object({
+        githubUrl: z.string(),
+        githubToken: z.string().optional(),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       // First validate the repository
@@ -292,34 +229,4 @@ export const projectRouter = createTRPCRouter({
         isPrivate: !validationResult.isPublic,
       };
     }),
-  // Add a new endpoint to check credits for meeting uploads
-  checkMeetingCredits: protectedProdecure
-    .input(
-      z.object({
-        durationMinutes: z.number().int().positive(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const creditsNeeded = calculateMeetingCredits(input.durationMinutes);
-
-      const user = await ctx.db.user.findUnique({
-        where: { id: ctx.user.userId! },
-        select: { credits: true },
-      });
-
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      return {
-        creditsNeeded,
-        userCredits: user.credits || 0,
-        hasEnoughCredits: (user.credits || 0) >= creditsNeeded,
-      };
-    }),
-  getStripeTransactions: protectedProdecure.query(async ({ ctx }) => {
-    return await ctx.db.stripeTransaction.findMany({
-      where: { userId: ctx.user.userId! },
-    });
-  }),
 });

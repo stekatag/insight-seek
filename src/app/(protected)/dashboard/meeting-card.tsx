@@ -60,8 +60,8 @@ export default function MeetingCard() {
   const [fileUrl, setFileUrl] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const uploadMeeting = api.project.uploadMeeting.useMutation();
-  const checkCredits = api.project.checkMeetingCredits.useMutation();
+  const uploadMeeting = api.meetings.uploadMeeting.useMutation();
+  const checkCredits = api.meetings.checkMeetingCredits.useMutation();
 
   const processMeeting = useMutation({
     mutationFn: async (data: {

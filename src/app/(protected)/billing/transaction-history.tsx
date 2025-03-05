@@ -15,7 +15,7 @@ import { ReceiptIcon } from "lucide-react";
 
 export default function TransactionHistory() {
   const { data: transactions, isLoading } =
-    api.project.getStripeTransactions.useQuery();
+    api.user.getStripeTransactions.useQuery();
 
   if (isLoading) {
     return (

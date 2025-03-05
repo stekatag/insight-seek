@@ -13,7 +13,7 @@ import { CustomCreditAmount } from "./custom-credit-amount";
 import { CreditBenefits } from "./credit-benefits";
 
 export default function BillingPage() {
-  const { data: user, isLoading } = api.project.getMyCredits.useQuery();
+  const { data: user, isLoading } = api.user.getMyCredits.useQuery();
   const [creditsToBuy, setCreditsToBuy] = useState<number[]>([100]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [processingPackageId, setProcessingPackageId] = useState<string | null>(

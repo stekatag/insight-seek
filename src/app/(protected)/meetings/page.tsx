@@ -7,12 +7,11 @@ import MeetingCard from "../dashboard/meeting-card";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import {
   NoMeetingsEmptyState,
   NoProjectEmptyState,
 } from "@/components/empty-states";
-import { Check, Clock, Eye, FileQuestion, Loader2, Trash } from "lucide-react";
+import { Check, Clock, Eye, FileQuestion, Loader2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -24,10 +23,12 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import DeleteMeetingButton from "./delete-meeting-button";
 
 export default function MeetingsPage() {
   const { project, projectId } = useProject();
   const hasProject = !!project;
+  const refetch = useRefetch();
 
   const { data: meetings, isLoading } = api.project.getMeetings.useQuery(
     { projectId },
@@ -37,9 +38,6 @@ export default function MeetingsPage() {
       staleTime: 0,
     },
   );
-
-  const deleteMeeting = api.project.deleteMeeting.useMutation();
-  const refetch = useRefetch();
 
   // Show empty state when no project exists
   if (!hasProject) {
@@ -55,6 +53,11 @@ export default function MeetingsPage() {
     meetings?.filter((m) => m.status === "PROCESSING").length || 0;
   const completedCount =
     meetings?.filter((m) => m.status === "COMPLETED").length || 0;
+
+  const handleDeleteSuccess = () => {
+    // Refetch meetings after successful deletion
+    refetch();
+  };
 
   return (
     <div className="space-y-6">
@@ -164,8 +167,6 @@ export default function MeetingsPage() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div>
-                            {" "}
-                            {/* Wrapper div to control tooltip behavior */}
                             {isProcessing ? (
                               <Button
                                 size="sm"
@@ -198,52 +199,11 @@ export default function MeetingsPage() {
                       </Tooltip>
                     </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="w-24"
-                            disabled={deleteMeeting.isPending}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  "Are you sure you want to delete this meeting?",
-                                )
-                              ) {
-                                deleteMeeting.mutate(
-                                  { meetingId: meeting.id },
-                                  {
-                                    onSuccess: () => {
-                                      toast.success(
-                                        "Meeting deleted successfully!",
-                                      );
-                                      refetch();
-                                    },
-                                    onError: () => {
-                                      toast.error("Failed to delete meeting");
-                                    },
-                                  },
-                                );
-                              }
-                            }}
-                          >
-                            {deleteMeeting.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Trash className="mr-1.5 h-4 w-4" />
-                                Delete
-                              </>
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Delete this meeting and all its data
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <DeleteMeetingButton
+                      meetingId={meeting.id}
+                      meetingName={meeting.name}
+                      onDeleteSuccess={handleDeleteSuccess}
+                    />
                   </div>
                 </li>
               );

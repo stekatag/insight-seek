@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { FileQuestion, Folder, Plus, Presentation } from "lucide-react";
 import Link from "next/link";
+import { ProjectSelector } from "./project-selector";
 
 type EmptyStateProps = {
   title: string;
@@ -52,31 +53,28 @@ export function NoProjectEmptyState({
 }: {
   type: "questions" | "meetings";
 }) {
-  const texts = {
-    questions: {
-      title: "No Project Selected",
-      description:
-        "You need to create and select a project before you can ask questions.",
-      action: "Create a new project",
-    },
-    meetings: {
-      title: "No Project Selected",
-      description:
-        "You need to create and select a project before you can upload meetings.",
-      action: "Create a new project",
-    },
-  };
-
   return (
-    <EmptyState
-      title={texts[type].title}
-      description={texts[type].description}
-      icon={<Folder className="h-8 w-8 text-muted-foreground" />}
-      action={{
-        label: texts[type].action,
-        href: "/create",
-      }}
-    />
+    <div className="flex flex-col gap-6 rounded-lg border border-dashed bg-muted/40 p-8">
+      <div className="flex flex-col items-center justify-center text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted/60">
+          <Folder className="h-10 w-10 text-muted-foreground" />
+        </div>
+
+        <h3 className="mt-5 text-xl font-semibold">No Project Selected</h3>
+        <p className="mb-6 mt-2 max-w-md text-base text-muted-foreground">
+          Select an existing project or create a new one to{" "}
+          {type === "questions" ? "start asking questions" : "upload meetings"}.
+        </p>
+
+        <div className="mx-auto w-full max-w-sm">
+          <ProjectSelector
+            compact
+            showCard={false}
+            className="mx-auto max-w-xs"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

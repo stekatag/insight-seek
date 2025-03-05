@@ -7,10 +7,15 @@ import Link from "next/link";
 import useProject from "@/hooks/use-project";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
-  const { data: commits, refetch } = api.project.getCommits.useQuery(
+  const {
+    data: commits,
+    refetch,
+    isLoading,
+  } = api.commits.getCommits.useQuery(
     { projectId },
     {
       enabled: !!projectId,
@@ -25,10 +30,26 @@ export default function CommitLog() {
     }
   }, [projectId, refetch]);
 
-  if (!commits || commits.length === 0) return null;
+  // Return null if no project or explicitly no commits
+  if (!projectId || (commits && commits.length === 0)) return null;
+
+  // Show loading state
+  if (isLoading || !commits) {
+    return <CommitLogSkeleton />;
+  }
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Recent Commits</h2>
+        <Link
+          href={`${project?.githubUrl}/commits`}
+          target="_blank"
+          className="text-sm text-muted-foreground hover:text-primary hover:underline"
+        >
+          View all on GitHub <ExternalLink className="ml-1 inline h-3 w-3" />
+        </Link>
+      </div>
       <ul role="list" className="space-y-6">
         {commits.map((commit, commitIdx) => (
           <li key={commit.id} className="relative flex gap-x-4">
@@ -93,5 +114,34 @@ export default function CommitLog() {
         ))}
       </ul>
     </>
+  );
+}
+
+function CommitLogSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-7 w-36" />
+        <Skeleton className="h-5 w-32" />
+      </div>
+
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex gap-4">
+          <div className="relative flex w-6 justify-center">
+            <div className="absolute bottom-0 top-0 w-px bg-gray-200"></div>
+          </div>
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+          <div className="w-full space-y-3 rounded-md border p-3">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-5 w-full max-w-md" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

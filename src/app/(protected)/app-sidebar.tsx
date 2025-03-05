@@ -25,6 +25,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const items = [
   {
@@ -52,7 +53,7 @@ const items = [
 export default function AppSidebar() {
   const pathname = usePathname();
   const { open } = useSidebar();
-  const { projects, projectId, setProjectId } = useProject();
+  const { projects, projectId, setProjectId, isLoading } = useProject();
 
   return (
     <Sidebar collapsible="icon" variant="floating">
@@ -92,37 +93,60 @@ export default function AppSidebar() {
           <SidebarGroupLabel>Your Projects</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {projects?.map((project) => (
-                <SidebarMenuItem key={project.name}>
-                  <SidebarMenuButton asChild>
-                    <div onClick={() => setProjectId(project.id)}>
-                      <div
-                        className={cn(
-                          "flex size-6 items-center justify-center rounded-sm border bg-white text-sm text-primary",
-                          {
-                            "bg-primary text-white": project.id === projectId,
-                          },
-                          {
-                            "size-5 p-2": !open,
-                          },
-                        )}
-                      >
-                        {project.name.charAt(0)}
+              {isLoading ? (
+                // Projects loading skeleton
+                <>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <SidebarMenuItem key={`skeleton-${i}`}>
+                      <div className="flex items-center gap-2 px-1">
+                        <Skeleton className="size-6 shrink-0 rounded-sm" />
+                        {open && <Skeleton className="h-4 w-24" />}
                       </div>
-                      {open && <span>{project.name}</span>}
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {open && (
-                <SidebarMenuItem className="mt-2">
-                  <Link href="/create">
-                    <Button size="sm" variant="outline" className="w-fit">
-                      <Plus />
-                      <span>Create Project</span>
-                    </Button>
-                  </Link>
-                </SidebarMenuItem>
+                    </SidebarMenuItem>
+                  ))}
+                  {open && (
+                    <SidebarMenuItem className="mt-2">
+                      <Skeleton className="h-8 w-32" />
+                    </SidebarMenuItem>
+                  )}
+                </>
+              ) : (
+                // Actual projects list
+                <>
+                  {projects?.map((project) => (
+                    <SidebarMenuItem key={project.name}>
+                      <SidebarMenuButton asChild>
+                        <div onClick={() => setProjectId(project.id)}>
+                          <div
+                            className={cn(
+                              "flex size-6 items-center justify-center rounded-sm border bg-white text-sm text-primary",
+                              {
+                                "bg-primary text-white":
+                                  project.id === projectId,
+                              },
+                              {
+                                "size-5 p-2": !open,
+                              },
+                            )}
+                          >
+                            {project.name.charAt(0)}
+                          </div>
+                          {open && <span>{project.name}</span>}
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                  {open && (
+                    <SidebarMenuItem className="mt-2">
+                      <Link href="/create">
+                        <Button size="sm" variant="outline" className="w-fit">
+                          <Plus />
+                          <span>Create Project</span>
+                        </Button>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+                </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

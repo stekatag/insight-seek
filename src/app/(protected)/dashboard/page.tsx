@@ -7,14 +7,18 @@ import { ExternalLink } from "lucide-react";
 import CommitLog from "./commit-log";
 import AskQuestionCard from "./ask-question-card";
 import MeetingCard from "./meeting-card";
-import ArchiveButton from "./archive-button";
-import InviteButton from "./invite-button";
-import TeamMembers from "./team-members";
+import DeleteProjectButton from "./delete-project-button";
 import OnboardingView from "./onboarding-view";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
-  const { project } = useProject();
+  const { project, isLoading } = useProject();
   const hasProject = !!project;
+
+  // Show loading state
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -44,9 +48,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-4">
-              <TeamMembers />
-              <InviteButton />
-              <ArchiveButton />
+              <DeleteProjectButton />
             </div>
           </div>
 
@@ -58,6 +60,58 @@ export default function DashboardPage() {
           <CommitLog />
         </>
       )}
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header skeleton */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-12 w-72" />
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-9 w-9" />
+          </div>
+        </div>
+
+        {/* Banner skeleton */}
+        <div className="rounded-lg border p-6">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
+            <div className="w-full space-y-2">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+      </div>
+
+      {/* Cards skeleton */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+        <Skeleton className="h-64 sm:col-span-3" />
+        <Skeleton className="h-64 sm:col-span-2" />
+      </div>
+
+      {/* Commit log skeleton */}
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex gap-4">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <div className="flex w-full flex-col gap-2 rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-5 w-full max-w-96" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
