@@ -4,6 +4,7 @@ const config = {
   parserOptions: {
     project: true,
   },
+  // @ts-ignore
   plugins: ["@typescript-eslint"],
   extends: [
     "next/core-web-vitals",
