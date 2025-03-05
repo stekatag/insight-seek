@@ -3,6 +3,7 @@ import { createTRPCRouter, protectedProdecure } from "../trpc";
 import { pullCommits } from "@/lib/github";
 import { checkCredits, indexGithubRepo } from "@/lib/github-loader";
 import { validateGitHubRepo } from "@/lib/github-validator";
+import { calculateMeetingCredits } from "@/lib/credits";
 
 export const projectRouter = createTRPCRouter({
   // Add the new validation procedure
@@ -169,17 +170,46 @@ export const projectRouter = createTRPCRouter({
         projectId: z.string(),
         meetingUrl: z.string(),
         name: z.string(),
+        durationMinutes: z.number().int().positive(),
+        creditsToCharge: z.number().int().positive(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const meeting = await ctx.db.meeting.create({
-        data: {
-          meetingUrl: input.meetingUrl,
-          projectId: input.projectId,
-          name: input.name,
-          status: "PROCESSING",
-        },
+      // Check if user has enough credits
+      const user = await ctx.db.user.findUnique({
+        where: { id: ctx.user.userId! },
+        select: { credits: true },
       });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if ((user.credits || 0) < input.creditsToCharge) {
+        throw new Error("Insufficient credits");
+      }
+
+      // Create meeting and deduct credits in a transaction
+      const meeting = await ctx.db.$transaction(async (tx) => {
+        // Deduct credits
+        await tx.user.update({
+          where: { id: ctx.user.userId! },
+          data: { credits: { decrement: input.creditsToCharge } },
+        });
+
+        // Create the meeting
+        const meeting = await tx.meeting.create({
+          data: {
+            meetingUrl: input.meetingUrl,
+            projectId: input.projectId,
+            name: input.name,
+            status: "PROCESSING",
+          },
+        });
+
+        return meeting;
+      });
+
       return meeting;
     }),
   getMeetings: protectedProdecure
@@ -262,4 +292,34 @@ export const projectRouter = createTRPCRouter({
         isPrivate: !validationResult.isPublic,
       };
     }),
+  // Add a new endpoint to check credits for meeting uploads
+  checkMeetingCredits: protectedProdecure
+    .input(
+      z.object({
+        durationMinutes: z.number().int().positive(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const creditsNeeded = calculateMeetingCredits(input.durationMinutes);
+
+      const user = await ctx.db.user.findUnique({
+        where: { id: ctx.user.userId! },
+        select: { credits: true },
+      });
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      return {
+        creditsNeeded,
+        userCredits: user.credits || 0,
+        hasEnoughCredits: (user.credits || 0) >= creditsNeeded,
+      };
+    }),
+  getStripeTransactions: protectedProdecure.query(async ({ ctx }) => {
+    return await ctx.db.stripeTransaction.findMany({
+      where: { userId: ctx.user.userId! },
+    });
+  }),
 });
