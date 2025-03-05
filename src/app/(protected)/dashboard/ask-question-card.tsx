@@ -8,18 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
 import { Textarea } from "@/components/ui/textarea";
 import useProject from "@/hooks/use-project";
 import {
@@ -34,15 +22,12 @@ import {
 import { FormEvent, useState } from "react";
 import { askQuestion } from "./actions";
 import { readStreamableValue } from "ai/rsc";
-import CodeReferences from "./code-references";
 import { api } from "@/trpc/react";
 import { toast } from "sonner";
 import useRefetch from "@/hooks/use-refetch";
-import { useIsMobile } from "@/hooks/use-mobile";
-import MarkdownRenderer from "@/components/markdown-renderer";
-import { CollapsibleContent } from "@/components/collapsible-content";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import AnswerDisplay from "./answer-display";
 
 // Predefined questions with icons remain unchanged
 const predefinedQuestions = [
@@ -84,7 +69,6 @@ export default function AskQuestionCard() {
   const [answer, setAnswer] = useState("");
   const saveAnswer = api.qa.saveAnswer.useMutation();
   const refetch = useRefetch();
-  const isMobile = useIsMobile();
 
   const selectPredefinedQuestion = (question: string) => {
     setQuestion(question);
@@ -147,99 +131,18 @@ export default function AskQuestionCard() {
     );
   };
 
-  const AnswerContent = (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>Answer</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <CollapsibleContent
-          maxHeight={500}
-          content={
-            <MarkdownRenderer
-              content={answer}
-              className="rounded-lg bg-white shadow-sm dark:bg-gray-800"
-            />
-          }
-        />
-      </CardContent>
-    </Card>
-  );
-
   return (
     <>
-      {/* Answer Modal/Sheet */}
-      {isMobile ? (
-        <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent>
-            <div className="max-h-[85vh] overflow-y-auto px-4 pb-6">
-              <DrawerHeader className="pl-0 text-left">
-                <DrawerTitle className="text-muted-foreground">
-                  {question}
-                </DrawerTitle>
-              </DrawerHeader>
-              {AnswerContent}
-
-              {filesReferences.length > 0 && (
-                <Card className="mt-4">
-                  <CardHeader>
-                    <CardTitle>Code References</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CodeReferences filesReferences={filesReferences} />
-                  </CardContent>
-                </Card>
-              )}
-              <div className="mt-4 flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={handleSaveAnswer}
-                  disabled={saveAnswer.isPending}
-                >
-                  Save
-                </Button>
-                <Button type="button" onClick={() => setOpen(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          </DrawerContent>
-        </Drawer>
-      ) : (
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent className="overflow-y-auto sm:max-w-[80vw]">
-            <SheetHeader>
-              <SheetTitle className="text-muted-foreground">
-                {question}
-              </SheetTitle>
-            </SheetHeader>
-            {AnswerContent}
-
-            {filesReferences.length > 0 && (
-              <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>Code References</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CodeReferences filesReferences={filesReferences} />
-                </CardContent>
-              </Card>
-            )}
-            <div className="mt-4 flex justify-between">
-              <Button
-                variant="outline"
-                onClick={handleSaveAnswer}
-                disabled={saveAnswer.isPending}
-              >
-                Save
-              </Button>
-              <Button type="button" onClick={() => setOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
+      {/* Answer Display Component */}
+      <AnswerDisplay
+        open={open}
+        setOpen={setOpen}
+        question={question}
+        answer={answer}
+        filesReferences={filesReferences}
+        onSave={handleSaveAnswer}
+        isSaving={saveAnswer.isPending}
+      />
 
       {/* Question Card with Enhanced UI */}
       <Card className="relative col-span-1 sm:col-span-3">
@@ -278,9 +181,7 @@ export default function AskQuestionCard() {
                   className="flex h-auto items-center justify-start whitespace-normal border-primary/20 px-3 py-1.5 text-left text-xs"
                   onClick={() => selectPredefinedQuestion(q.text)}
                 >
-                  <q.icon
-                    className={cn("mr-1.5 h-3.5 w-3.5 shrink-0", q.color)}
-                  />
+                  <q.icon className={cn("h-3.5 w-3.5 shrink-0", q.color)} />
                   <span className="line-clamp-2">{q.text}</span>
                 </Button>
               ))}

@@ -76,25 +76,25 @@ export default function QAPage() {
         <Fragment key={question.id}>
           <div
             onClick={() => handleQuestionClick(idx)}
-            className="flex cursor-pointer items-center gap-4 rounded-lg border bg-white p-4 shadow hover:bg-gray-50"
+            className="flex w-full cursor-pointer items-start gap-3 rounded-lg border bg-white p-4 shadow hover:bg-gray-50"
           >
             <Image
-              className="rounded-full"
+              className="mt-1 flex-shrink-0 rounded-full"
               alt="User"
               height={30}
               width={30}
               src={question?.user.imageUrl ?? ""}
             />
-            <div className="flex flex-col text-left">
-              <div className="flex items-center gap-2">
-                <p className="line-clamp-1 text-lg font-medium text-gray-700">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <p className="line-clamp-1 break-words text-lg font-medium text-gray-700">
                   {question.question}
                 </p>
-                <span className="whitespace-nowrap text-xs text-gray-400">
+                <span className="shrink-0 text-xs text-gray-400 sm:ml-2">
                   {question.createdAt.toLocaleDateString()}
                 </span>
               </div>
-              <p className="line-clamp-1 text-sm text-gray-500">
+              <p className="mt-1 line-clamp-1 break-words text-sm text-gray-500">
                 {question.answer}
               </p>
             </div>

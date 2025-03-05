@@ -112,9 +112,9 @@ export default function CommitLog() {
                   <span>Generating summary...</span>
                 </div>
               ) : (
-                <pre className="whitespace-pre-wrap text-sm leading-6 text-gray-600">
+                <span className="whitespace-break-spaces text-sm leading-6 text-gray-600">
                   {commit.summary || "Summary unavailable"}
-                </pre>
+                </span>
               )}
             </div>
           </li>

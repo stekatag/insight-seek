@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { CollapsibleContent } from "@/components/collapsible-content";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { getLanguageFromFilename } from "@/utils/code-language";

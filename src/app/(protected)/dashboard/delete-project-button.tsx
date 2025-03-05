@@ -12,7 +12,7 @@ import {
 import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
 import { api } from "@/trpc/react";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -119,7 +119,7 @@ export default function DeleteProjectButton({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2">
             <Button
               variant="outline"
               onClick={(e) => {
@@ -127,6 +127,7 @@ export default function DeleteProjectButton({
                 setOpen(false);
               }}
             >
+              <X className="h-4 w-4" />
               Cancel
             </Button>
             <Button
@@ -139,12 +140,12 @@ export default function DeleteProjectButton({
             >
               {deleteProject.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Deleting...
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   Delete Project
                 </>
               )}
