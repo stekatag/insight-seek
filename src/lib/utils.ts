@@ -24,7 +24,7 @@ export function truncateText(
 
   // Find a good breaking point (e.g., space, comma, etc.)
   let truncateIndex = maxLength;
-  const breakChars = [" ", ",", ";", ".", ":", "-"];
+  const breakChars = [" ", ",", ";", ".", ":", "-", "/"];
 
   // Look for a good breaking point starting from maxLength and going backwards
   for (let i = maxLength; i > maxLength - 20 && i > 0; i--) {

@@ -10,14 +10,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import useProject from "@/hooks/use-project";
+import useRefetch from "@/hooks/use-refetch";
 import { api } from "@/trpc/react";
 import { Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import useRefetch from "@/hooks/use-refetch";
 
-export default function DeleteProjectButton() {
+interface DeleteProjectButtonProps {
+  minimal?: boolean;
+}
+
+export default function DeleteProjectButton({
+  minimal = false,
+}: DeleteProjectButtonProps) {
   const [open, setOpen] = useState(false);
   const deleteProject = api.project.deleteProject.useMutation();
   const { project, projectId, setProjectId } = useProject();
@@ -45,22 +51,48 @@ export default function DeleteProjectButton() {
     }
   };
 
+  const handleOpenDialog = (e: React.MouseEvent) => {
+    // Stop propagation to prevent the dropdown from closing
+    e.stopPropagation();
+    e.preventDefault();
+    setOpen(true);
+  };
+
   if (!project) return null;
 
   return (
     <>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5"
-      >
-        <Trash2 className="h-4 w-4" />
-        <span>Delete Project</span>
-      </Button>
+      {minimal ? (
+        <div
+          className="flex w-full items-center"
+          onClick={handleOpenDialog}
+          onMouseDown={(e) => e.stopPropagation()} // Prevent dropdown mousedown event
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          <span>Delete Project</span>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={handleOpenDialog}
+          className="flex items-center gap-1.5"
+        >
+          <Trash2 className="h-4 w-4" />
+          <span>Delete Project</span>
+        </Button>
+      )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+      <Dialog
+        open={open}
+        onOpenChange={(newOpen) => {
+          // Only allow explicit user interactions to close the dialog
+          if (open && !newOpen) {
+            setOpen(false);
+          }
+        }}
+      >
+        <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Delete Project</DialogTitle>
             <DialogDescription>
@@ -88,12 +120,21 @@ export default function DeleteProjectButton() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+              }}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDeleteProject}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteProject();
+              }}
               disabled={deleteProject.isPending}
             >
               {deleteProject.isPending ? (

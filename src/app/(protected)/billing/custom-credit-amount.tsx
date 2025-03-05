@@ -47,7 +47,7 @@ export function CustomCreditAmount({
             onValueChange={onCreditAmountChange}
             value={creditAmount}
           />
-          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
             <span>100 credits</span>
             <span>2500 credits</span>
           </div>

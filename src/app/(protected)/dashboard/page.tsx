@@ -3,13 +3,21 @@
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import useProject from "@/hooks/use-project";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Settings } from "lucide-react";
 import CommitLog from "./commit-log";
 import AskQuestionCard from "./ask-question-card";
 import MeetingCard from "./meeting-card";
 import DeleteProjectButton from "./delete-project-button";
 import OnboardingView from "./onboarding-view";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function DashboardPage() {
   const { project, isLoading } = useProject();
@@ -26,33 +34,65 @@ export default function DashboardPage() {
         <OnboardingView />
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-y-4">
-            {/* GitHub Repo Link */}
-            <div className="w-fit rounded-md bg-primary px-4 py-3">
-              <div className="flex items-center">
-                <GitHubLogoIcon className="size-5 text-white" />
-                <div className="ml-2">
-                  <p className="text-sm font-medium text-white">
-                    This project is linked to{" "}
-                    <Link
-                      href={project.githubUrl ?? ""}
-                      className="inline-flex items-center text-white/80 hover:underline"
-                      target="_blank"
-                    >
-                      {project.githubUrl}
-                      <ExternalLink className="ml-1 size-4" />
-                    </Link>
-                  </p>
+          {/* Project Header */}
+          <div className="mb-6">
+            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+              {/* Project Title */}
+              <div>
+                <h1 className="mb-3 text-2xl font-bold tracking-tight">
+                  {project.name}
+                </h1>
+                <div className="mt-1 flex flex-wrap items-center gap-2 gap-y-1 text-sm text-muted-foreground">
+                  <Link
+                    href={project.githubUrl ?? ""}
+                    className="flex flex-col gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 sm:flex-row sm:items-center"
+                    target="_blank"
+                    title={project.githubUrl}
+                  >
+                    <GitHubLogoIcon className="h-5 w-5 sm:h-4 sm:w-4" />
+                    <div className="flex flex-col gap-1 text-sm sm:flex-row">
+                      <span>This project is linked to</span>
+                      <span className="border-primary/50 sm:border-b">
+                        {project.githubUrl}
+                      </span>
+                    </div>
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-4">
-              <DeleteProjectButton />
+              {/* Project Actions */}
+              <div className="flex items-center gap-2 lg:self-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Settings className="mr-1.5 h-4 w-4" />
+                      <span>Project Settings</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={project.githubUrl}
+                        target="_blank"
+                        className="flex w-full cursor-pointer items-center"
+                      >
+                        <GitHubLogoIcon className="mr-2 h-4 w-4" />
+                        <span>View on GitHub</span>
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+                      <DeleteProjectButton minimal />
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <AskQuestionCard />
             <MeetingCard />
           </div>
@@ -70,33 +110,26 @@ function DashboardSkeleton() {
       {/* Header skeleton */}
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-12 w-72" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-60" />
+            <Skeleton className="h-5 w-44" />
+          </div>
           <div className="flex items-center space-x-2">
             <Skeleton className="h-9 w-32" />
-            <Skeleton className="h-9 w-9" />
-          </div>
-        </div>
-
-        {/* Banner skeleton */}
-        <div className="rounded-lg border p-6">
-          <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
-            <div className="w-full space-y-2">
-              <Skeleton className="h-8 w-3/4" />
-              <Skeleton className="h-4 w-2/3" />
-            </div>
-            <Skeleton className="h-10 w-32" />
           </div>
         </div>
       </div>
 
       {/* Cards skeleton */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Skeleton className="h-64 sm:col-span-3" />
         <Skeleton className="h-64 sm:col-span-2" />
       </div>
 
       {/* Commit log skeleton */}
       <div className="space-y-6">
+        <Skeleton className="h-8 w-44" />
+
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex gap-4">
             <Skeleton className="h-8 w-8 rounded-full" />
