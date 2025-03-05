@@ -16,7 +16,7 @@ export default function MeetingDetailPage() {
     data: meeting,
     isLoading,
     error,
-  } = api.project.getMeetingById.useQuery({ meetingId });
+  } = api.meeting.getMeetingById.useQuery({ meetingId });
 
   // Handle loading state
   if (isLoading) {

@@ -30,7 +30,7 @@ export default function MeetingsPage() {
   const hasProject = !!project;
   const refetch = useRefetch();
 
-  const { data: meetings, isLoading } = api.project.getMeetings.useQuery(
+  const { data: meetings, isLoading } = api.meeting.getMeetings.useQuery(
     { projectId },
     {
       refetchInterval: 10000, // Refetch every 10 seconds to check for status changes

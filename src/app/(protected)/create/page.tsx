@@ -8,10 +8,12 @@ import { api } from "@/trpc/react";
 import {
   AlertTriangle,
   CheckCircle2,
+  CreditCard,
   ExternalLink,
   Github,
   Info,
   Loader2,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -37,6 +39,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 const formSchema = z.object({
   projectName: z.string().min(3, {
@@ -305,25 +308,18 @@ export default function CreatePage() {
             onClick={() => router.push("/dashboard")}
             disabled={createProject.isPending}
           >
-            Cancel
+            <X className="h-4 w-4" />
+            <span>Cancel</span>
           </Button>
 
           <div className="flex gap-2">
             {!hasEnoughCredits && validationState === "validated" && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  createCheckoutSession(
-                    checkCredits.data!.fileCount -
-                      checkCredits.data!.userCredits,
-                  )
-                }
-                disabled={createProject.isPending}
-              >
-                Buy{" "}
-                {checkCredits.data!.fileCount - checkCredits.data!.userCredits}{" "}
-                Credits
-              </Button>
+              <Link href="/billing">
+                <Button disabled={createProject.isPending}>
+                  <CreditCard className="h-4 w-4" />
+                  <span>Buy Credits</span>
+                </Button>
+              </Link>
             )}
 
             <Button

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProdecure } from "../trpc";
 import { pullCommits } from "@/lib/github";
 
-export const commitsRouter = createTRPCRouter({
+export const commitRouter = createTRPCRouter({
   // Get commits for a project
   getCommits: protectedProdecure
     .input(z.object({ projectId: z.string() }))

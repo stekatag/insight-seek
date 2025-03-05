@@ -37,7 +37,7 @@ export default function AskQuestionCard() {
     { fileName: string; sourceCode: string; summary: string }[]
   >([]);
   const [answer, setAnswer] = useState("");
-  const saveAnswer = api.project.saveAnswer.useMutation();
+  const saveAnswer = api.qa.saveAnswer.useMutation();
   const refetch = useRefetch();
   const isMobile = useIsMobile();
 

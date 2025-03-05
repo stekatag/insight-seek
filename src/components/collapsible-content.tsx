@@ -22,25 +22,10 @@ export function CollapsibleContent({
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Check if content overflows when it changes or on window resize
   useEffect(() => {
-    const checkOverflow = () => {
-      if (contentRef.current) {
-        const hasOverflow = contentRef.current.scrollHeight > maxHeight;
-        setIsOverflowing(hasOverflow);
-      }
-    };
-
-    // Use a small timeout to ensure content is properly rendered before checking
-    const timeoutId = setTimeout(checkOverflow, 100);
-    
-    // Also check on window resize
-    window.addEventListener("resize", checkOverflow);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener("resize", checkOverflow);
-    };
+    if (contentRef.current) {
+      setIsOverflowing(contentRef.current.scrollHeight > maxHeight);
+    }
   }, [content, maxHeight]);
 
   return (
@@ -48,13 +33,15 @@ export function CollapsibleContent({
       <div
         ref={contentRef}
         style={{
-          maxHeight: isExpanded ? "none" : isOverflowing ? `${maxHeight}px` : "none",
+          maxHeight: isExpanded
+            ? "none"
+            : isOverflowing
+              ? `${maxHeight}px`
+              : "none",
           overflow: "hidden",
-          transition: "max-height 0.3s ease"
+          transition: "max-height 0.3s ease",
         }}
-        className={cn(
-          "transition-all duration-300"
-        )}
+        className={cn("transition-all duration-300")}
       >
         {content}
       </div>
@@ -64,7 +51,7 @@ export function CollapsibleContent({
           className={cn(
             "flex justify-center pt-2",
             !isExpanded &&
-              "absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent pt-8"
+              "absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent pt-8",
           )}
         >
           <Button

@@ -26,7 +26,7 @@ export default function DeleteMeetingButton({
   onDeleteSuccess,
 }: DeleteMeetingButtonProps) {
   const [open, setOpen] = useState(false);
-  const deleteMeeting = api.project.deleteMeeting.useMutation();
+  const deleteMeeting = api.meeting.deleteMeeting.useMutation();
 
   const handleDelete = async () => {
     try {

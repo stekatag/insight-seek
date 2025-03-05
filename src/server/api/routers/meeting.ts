@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProdecure } from "../trpc";
 import { calculateMeetingCredits } from "@/lib/credits";
 
-export const meetingsRouter = createTRPCRouter({
+export const meetingRouter = createTRPCRouter({
   // Upload a new meeting
   uploadMeeting: protectedProdecure
     .input(

@@ -15,11 +15,11 @@ export default function CommitLog() {
     data: commits,
     refetch,
     isLoading,
-  } = api.commits.getCommits.useQuery(
+  } = api.commit.getCommits.useQuery(
     { projectId },
     {
       enabled: !!projectId,
-      refetchInterval: 15000, // Refetch every 15 seconds to get updated summaries
+      refetchInterval: 180000, // Refetch every 3 minutes to get updated summaries
     },
   );
 

@@ -2,7 +2,7 @@
 
 import { db } from "@/server/db";
 import { headers } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -51,5 +51,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ message: "Hello world" });
+  return NextResponse.json({ message: "Event not handled" }, { status: 200 });
 }

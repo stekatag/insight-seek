@@ -33,7 +33,7 @@ export default function QAPage() {
   const { project, projectId } = useProject();
   const hasProject = !!project;
 
-  const { data: questions, isLoading } = api.project.getAnswers.useQuery(
+  const { data: questions, isLoading } = api.qa.getAnswers.useQuery(
     { projectId },
     {
       enabled: hasProject, // Only fetch if there's a project

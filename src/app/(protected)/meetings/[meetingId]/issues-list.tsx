@@ -52,7 +52,7 @@ type Props = {
 };
 
 export default function IssuesList({ meetingId }: Props) {
-  const { data: meeting, isLoading } = api.project.getMeetingById.useQuery({
+  const { data: meeting, isLoading } = api.meeting.getMeetingById.useQuery({
     meetingId,
   });
 
@@ -146,7 +146,7 @@ function IssueCard({
   issue,
 }: {
   issue: NonNullable<
-    RouterOutputs["project"]["getMeetingById"]
+    RouterOutputs["meeting"]["getMeetingById"]
   >["issues"][number];
 }) {
   const [isLoading, setIsLoading] = useState(false);

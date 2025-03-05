@@ -40,13 +40,13 @@ import {
   DialogTitle,
   DialogClose,
 } from "@/components/ui/dialog";
-import { createCheckoutSession } from "@/lib/stripe";
 import {
   calculateMeetingCredits,
   formatMeetingDuration,
   getDurationMinutes,
 } from "@/lib/credits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 export default function MeetingCard() {
   const { project } = useProject();
@@ -60,8 +60,8 @@ export default function MeetingCard() {
   const [fileUrl, setFileUrl] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const uploadMeeting = api.meetings.uploadMeeting.useMutation();
-  const checkCredits = api.meetings.checkMeetingCredits.useMutation();
+  const uploadMeeting = api.meeting.uploadMeeting.useMutation();
+  const checkCredits = api.meeting.checkMeetingCredits.useMutation();
 
   const processMeeting = useMutation({
     mutationFn: async (data: {
@@ -384,10 +384,12 @@ export default function MeetingCard() {
 
             <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
               {checkCredits.data && !hasEnoughCredits && (
-                <Button onClick={() => createCheckoutSession(creditsShortage)}>
-                  <CreditCard className="h-4 w-4" />
-                  Buy {creditsShortage} Credits
-                </Button>
+                <Link href="/billing">
+                  <Button>
+                    <CreditCard className="h-4 w-4" />
+                    <span>Buy Credits</span>
+                  </Button>
+                </Link>
               )}
 
               {hasEnoughCredits && (

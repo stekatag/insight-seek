@@ -8,7 +8,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-02-24.acacia",
 });
 
-export async function createCheckoutSession(credits: number, priceOverride?: number) {
+export async function createCheckoutSession(
+  credits: number,
+  priceOverride?: number,
+) {
   const { userId } = await auth();
 
   if (!userId) {
@@ -16,8 +19,8 @@ export async function createCheckoutSession(credits: number, priceOverride?: num
   }
 
   // Calculate the price in cents - use overridden price if provided, otherwise use standard rate
-  const unitAmount = priceOverride 
-    ? Math.round(priceOverride * 100) 
+  const unitAmount = priceOverride
+    ? Math.round(priceOverride * 100)
     : Math.round((credits / 50) * 100);
 
   const session = await stripe.checkout.sessions.create({
@@ -28,7 +31,9 @@ export async function createCheckoutSession(credits: number, priceOverride?: num
           currency: "usd",
           product_data: {
             name: `${credits} InsightSeek Credits`,
-            description: priceOverride ? "Special package pricing" : "Standard pricing",
+            description: priceOverride
+              ? "Special package pricing"
+              : "Standard pricing",
           },
           unit_amount: unitAmount,
         },
@@ -37,7 +42,7 @@ export async function createCheckoutSession(credits: number, priceOverride?: num
     ],
     customer_creation: "always",
     mode: "payment",
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/create`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?credits=${credits}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing`,
     client_reference_id: userId.toString(),
     metadata: {
