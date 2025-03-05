@@ -4,6 +4,7 @@ import { commitRouter } from "./routers/commit";
 import { meetingRouter } from "./routers/meeting";
 import { qaRouter } from "./routers/qa";
 import { userRouter } from "./routers/user";
+import { searchRouter } from "./routers/search";
 
 /**
  * This is the primary router for your server.
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   meeting: meetingRouter,
   qa: qaRouter,
   user: userRouter,
+  search: searchRouter,
 });
 
 // export type definition of API

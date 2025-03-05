@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, truncateText, TRUNCATION_LIMITS } from "@/lib/utils";
 import { api } from "@/trpc/react";
 import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +40,7 @@ export default function CommitLog() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
         <h2 className="text-xl font-semibold">Recent Commits</h2>
         <Link
           href={`${project?.githubUrl}/commits`}
@@ -72,12 +72,13 @@ export default function CommitLog() {
               <div className="flex justify-between gap-x-4">
                 <Link
                   target="_blank"
-                  className="py-0.5 text-xs leading-5 text-gray-500"
+                  className="mb-2 flex flex-col gap-1 py-0.5 text-xs leading-5 text-gray-500 sm:mb-0 sm:flex-row sm:gap-2"
                   href={`${project?.githubUrl}/commits/${commit.commitHash}`}
+                  title={commit.commitAuthorName}
                 >
                   <span className="font-medium text-gray-900">
                     {commit.commitAuthorName}
-                  </span>{" "}
+                  </span>
                   <span className="inline-flex items-center">
                     committed
                     <ExternalLink className="ml-1 h-4 w-4" />
@@ -92,8 +93,14 @@ export default function CommitLog() {
                   })}
                 </time>
               </div>
-              <span className="mb-2 block font-semibold">
-                {commit.commitMessage}
+              <span
+                className="mb-2 block font-semibold"
+                title={commit.commitMessage}
+              >
+                {truncateText(
+                  commit.commitMessage,
+                  TRUNCATION_LIMITS.COMMIT_MESSAGE,
+                )}
               </span>
               <span className="mb-1 flex items-center gap-1 text-xs text-primary/80">
                 <Sparkles className="size-4" /> AI Commit Summary
