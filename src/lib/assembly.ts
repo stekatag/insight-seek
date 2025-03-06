@@ -2,6 +2,23 @@ import { AssemblyAI } from "assemblyai";
 
 const client = new AssemblyAI({ apiKey: process.env.ASSEMBLY_AI_API_KEY! });
 
+interface AssemblyAIChapter {
+  start: number;
+  end: number;
+  gist?: string;
+  headline?: string;
+  summary?: string;
+}
+
+export interface ProcessedSummary {
+  start: string;
+  end: string;
+  gist: string;
+  headline: string;
+  summary: string;
+  meetingId?: string;
+}
+
 function msToTime(ms: number) {
   const seconds = ms / 1000;
   const minutes = Math.floor(seconds / 60);
@@ -16,13 +33,13 @@ export const processMeeting = async (meetingUrl: string) => {
     auto_chapters: true,
   });
 
-  const summaries =
-    transcript.chapters?.map((chapter) => ({
+  const summaries: ProcessedSummary[] =
+    transcript.chapters?.map((chapter: AssemblyAIChapter) => ({
       start: msToTime(chapter.start),
       end: msToTime(chapter.end),
-      gist: chapter.gist,
-      headline: chapter.headline,
-      summary: chapter.summary,
+      gist: chapter.gist || "",
+      headline: chapter.headline || "",
+      summary: chapter.summary || "",
     })) || [];
 
   if (!transcript.text) throw new Error("No text found in the transcript");
@@ -33,8 +50,59 @@ export const processMeeting = async (meetingUrl: string) => {
   };
 };
 
-// Example usage
-// const FILE_URL = "https://assembly.ai/sports_injuries.mp3";
+// Updated function to start transcription without webhooks
+export async function startMeetingTranscription(audioUrl: string) {
+  try {
+    console.log(`Starting transcription for audio: ${audioUrl}`);
 
-// const response = await processMeeting(FILE_URL);
-// console.log(response);
+    // Create configuration for the transcript - no webhooks
+    const transcriptParams = {
+      audio: audioUrl,
+      auto_chapters: true,
+      auto_highlights: true,
+    };
+
+    console.log("Submitting transcription to AssemblyAI");
+
+    // Submit the transcription job
+    const transcriptResponse =
+      await client.transcripts.submit(transcriptParams);
+    console.log("Transcription submitted successfully:", transcriptResponse.id);
+
+    return transcriptResponse;
+  } catch (error) {
+    console.error("Error starting transcription:", error);
+    throw error;
+  }
+}
+
+// Function to check transcription status
+export async function checkTranscriptionStatus(transcriptId: string) {
+  try {
+    const transcript = await client.transcripts.get(transcriptId);
+    return transcript;
+  } catch (error) {
+    console.error("Error checking transcription status:", error);
+    throw error;
+  }
+}
+
+// Function to process a completed transcript with proper types
+export async function processCompletedTranscript(transcriptData: any): Promise<{
+  text: string;
+  summaries: ProcessedSummary[];
+}> {
+  const summaries: ProcessedSummary[] =
+    transcriptData.chapters?.map((chapter: AssemblyAIChapter) => ({
+      start: msToTime(chapter.start),
+      end: msToTime(chapter.end),
+      gist: chapter.gist || chapter.headline || "",
+      headline: chapter.headline || "",
+      summary: chapter.summary || "",
+    })) || [];
+
+  return {
+    text: transcriptData.text || "",
+    summaries,
+  };
+}

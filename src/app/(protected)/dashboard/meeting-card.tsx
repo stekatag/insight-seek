@@ -47,6 +47,7 @@ import {
 } from "@/lib/credits";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
+import useRefetch from "@/hooks/use-refetch";
 
 export default function MeetingCard() {
   const { project } = useProject();
@@ -59,6 +60,7 @@ export default function MeetingCard() {
   const [audioDuration, setAudioDuration] = useState(0);
   const [fileUrl, setFileUrl] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const refetch = useRefetch();
 
   const uploadMeeting = api.meeting.uploadMeeting.useMutation();
   const checkCredits = api.meeting.checkMeetingCredits.useMutation();
@@ -186,6 +188,8 @@ export default function MeetingCard() {
               })
               .then(() => {
                 router.push("/meetings");
+                // Refetch meetings data
+                refetch();
               });
           },
           onError: (error) => {

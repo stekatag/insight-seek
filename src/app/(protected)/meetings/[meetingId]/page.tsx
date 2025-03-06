@@ -1,15 +1,17 @@
 "use client";
 
 import { api } from "@/trpc/react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Loader2, ArrowLeft, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import IssuesList from "./issues-list";
+import useRefetch from "@/hooks/use-refetch";
+import Link from "next/link";
 
 export default function MeetingDetailPage() {
   const params = useParams();
-  const router = useRouter();
+  const refetech = useRefetch();
   const meetingId = params.meetingId as string;
 
   const {
@@ -32,13 +34,11 @@ export default function MeetingDetailPage() {
   if (error || !meeting) {
     return (
       <div className="container mx-auto max-w-6xl space-y-4 p-4">
-        <Button
-          variant="outline"
-          onClick={() => router.push("/meetings")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Meetings
-        </Button>
+        <Link href="/meetings">
+          <Button variant="outline" className="mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Meetings
+          </Button>
+        </Link>
 
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -56,13 +56,11 @@ export default function MeetingDetailPage() {
   if (meeting.status === "PROCESSING") {
     return (
       <div className="container mx-auto max-w-6xl space-y-4 p-4">
-        <Button
-          variant="outline"
-          onClick={() => router.push("/meetings")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Meetings
-        </Button>
+        <Link href="/meetings">
+          <Button variant="outline" className="mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Meetings
+          </Button>
+        </Link>
 
         <Alert className="border-yellow-200 bg-yellow-50">
           <Clock className="h-4 w-4 text-yellow-600" />
@@ -94,7 +92,7 @@ export default function MeetingDetailPage() {
             </p>
             <Button
               variant="outline"
-              onClick={() => router.refresh()}
+              onClick={() => refetech()}
               className="mt-2"
             >
               Refresh Status
@@ -109,13 +107,11 @@ export default function MeetingDetailPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="container mx-auto max-w-full pb-4 sm:p-4">
-        <Button
-          variant="outline"
-          onClick={() => router.push("/meetings")}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Meetings
-        </Button>
+        <Link href="/meetings">
+          <Button variant="outline" className="mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Meetings
+          </Button>
+        </Link>
       </div>
 
       <IssuesList meetingId={meetingId} />

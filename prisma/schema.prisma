@@ -94,6 +94,8 @@ model Meeting {
 
     issues Issue[]
     meetingEmbeddings MeetingEmbedding[]
+
+    externalId String? // Add this field to store external transcription ID
 }
 
 model MeetingEmbedding {
@@ -122,12 +124,13 @@ model Issue {
 enum MeetingStatus {
     PROCESSING
     COMPLETED
+    ERROR
 }
 
 model Question {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    updatedAt DateTime @default(now())
 
     question String
     answer   String
@@ -144,7 +147,7 @@ model Question {
 model Commit {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    updatedAt DateTime @default(now())
 
     projectId String
     project  Project @relation(fields: [projectId], references: [id])
@@ -163,7 +166,7 @@ model Commit {
 model StripeTransaction {
     id       String   @id @default(cuid())
     createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    updatedAt DateTime @default(now())
 
     userId String
     user   User   @relation(fields: [userId], references: [id])
