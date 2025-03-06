@@ -8,6 +8,7 @@ import useProject from "@/hooks/use-project";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
@@ -62,9 +63,11 @@ export default function CommitLog() {
               <div className="w-px translate-x-1 bg-gray-200" />
             </div>
 
-            <img
+            <Image
               src={commit.commitAuthorAvatar}
               alt={commit.commitAuthorName}
+              width={8}
+              height={8}
               className="relative mt-3 h-8 w-8 flex-none rounded-full bg-gray-50"
             />
 

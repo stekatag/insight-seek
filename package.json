@@ -102,6 +102,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.0",
     "@types/eslint": "^9.6.1",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.9",
