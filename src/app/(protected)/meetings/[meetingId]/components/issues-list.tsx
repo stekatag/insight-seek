@@ -1,5 +1,21 @@
 "use client";
 
+import { useState } from "react";
+import { api, RouterOutputs } from "@/trpc/react";
+import { readStreamableValue } from "ai/rsc";
+import {
+  ArrowUpRight,
+  CircleAlert,
+  Clock,
+  FileText,
+  Loader2,
+  MessageSquare,
+  VideoIcon,
+} from "lucide-react";
+
+import { formatDuration } from "@/lib/format-duration";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,27 +41,13 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api, RouterOutputs } from "@/trpc/react";
-import { readStreamableValue } from "ai/rsc";
-import {
-  ArrowUpRight,
-  Clock,
-  FileText,
-  Loader2,
-  MessageSquare,
-  VideoIcon,
-  CircleAlert,
-} from "lucide-react";
-import { useState } from "react";
-import { askMeeting } from "../action";
-import { CollapsibleContent } from "@/components/collapsible-content";
-import MarkdownRenderer from "@/components/markdown-renderer";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { formatDuration } from "@/lib/format-duration";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CollapsibleContent } from "@/components/collapsible-content";
+import MarkdownRenderer from "@/components/markdown-renderer";
+
+import { askMeeting } from "../../action";
 
 type Props = {
   meetingId: string;

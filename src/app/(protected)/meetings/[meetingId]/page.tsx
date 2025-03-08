@@ -1,13 +1,15 @@
 "use client";
 
-import { api } from "@/trpc/react";
-import { useParams } from "next/navigation";
-import { Loader2, ArrowLeft, AlertTriangle, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import IssuesList from "./issues-list";
-import useRefetch from "@/hooks/use-refetch";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { api } from "@/trpc/react";
+import { AlertTriangle, ArrowLeft, Clock, Loader2 } from "lucide-react";
+
+import useRefetch from "@/hooks/use-refetch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+
+import IssuesList from "./components/issues-list";
 
 export default function MeetingDetailPage() {
   const params = useParams();

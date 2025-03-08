@@ -1,8 +1,10 @@
 "use client";
 
-import { CreditPackage } from "./credit-packages-data";
-import { Button } from "@/components/ui/button";
+import { Check, CreditCard, Info, Loader2 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,14 +14,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Check, CreditCard, Info, Loader2 } from "lucide-react";
+
+import { CreditPackage } from "../credit-packages-data";
 
 interface PackageCardsProps {
   packages: CreditPackage[];

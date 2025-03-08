@@ -1,5 +1,8 @@
 "use client";
 
+import { askQuestion } from "@/app/(protected)/dashboard/actions";
+import AnswerDisplay from "@/app/(protected)/dashboard/components/answer-display";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,6 +13,10 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import useProject from "@/hooks/use-project";
+import useRefetch from "@/hooks/use-refetch";
+import { cn } from "@/lib/utils";
+import { api } from "@/trpc/react";
+import { readStreamableValue } from "ai/rsc";
 import {
   Bot,
   BrainCircuit,
@@ -20,14 +27,7 @@ import {
   Undo,
 } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { askQuestion } from "./actions";
-import { readStreamableValue } from "ai/rsc";
-import { api } from "@/trpc/react";
 import { toast } from "sonner";
-import useRefetch from "@/hooks/use-refetch";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import AnswerDisplay from "./answer-display";
 
 // Predefined questions with icons remain unchanged
 const predefinedQuestions = [

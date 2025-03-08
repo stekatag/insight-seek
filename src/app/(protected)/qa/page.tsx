@@ -1,28 +1,29 @@
 "use client";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import useProject from "@/hooks/use-project";
-import { api } from "@/trpc/react";
-import AskQuestionCard from "../dashboard/ask-question-card";
 import { Fragment, useState } from "react";
 import Image from "next/image";
+import { api } from "@/trpc/react";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import useProject from "@/hooks/use-project";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { QuestionView } from "@/app/(protected)/qa/question-view";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import AskQuestionCard from "@/components/ask-question-card";
 import {
   NoProjectEmptyState,
   NoQuestionsEmptyState,
 } from "@/components/empty-states";
+import { QuestionView } from "@/app/(protected)/qa/components/question-view";
 
 type FileReference = {
   fileName: string;

@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import CodeReferences from "@/components/code-references";
 import { CollapsibleContent } from "@/components/collapsible-content";
 import MarkdownRenderer from "@/components/markdown-renderer";
-import CodeReferences from "@/app/(protected)/dashboard/code-references";
+
 import { QuestionHeader } from "./question-header";
 
 interface QuestionViewProps {

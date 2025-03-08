@@ -1,14 +1,20 @@
 "use client";
 
-import { cn, truncateText, TRUNCATION_LIMITS } from "@/lib/utils";
-import { api } from "@/trpc/react";
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
-import Link from "next/link";
-import useProject from "@/hooks/use-project";
-import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
+import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
+import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+
+import { api } from "@/trpc/react";
+import {
+  cn,
+  formatTechnicalText,
+  truncateText,
+  TRUNCATION_LIMITS,
+} from "@/lib/utils";
+import useProject from "@/hooks/use-project";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
@@ -53,7 +59,7 @@ export default function CommitLog() {
       </div>
       <ul role="list" className="space-y-6">
         {commits.map((commit, commitIdx) => (
-          <li key={commit.id} className="relative flex gap-x-4">
+          <li key={commit.id} className="relative flex gap-x-2 sm:gap-x-4">
             <div
               className={cn(
                 commitIdx === commits.length - 1 ? "h-6" : "-bottom-6",
@@ -66,8 +72,8 @@ export default function CommitLog() {
             <Image
               src={commit.commitAuthorAvatar}
               alt={commit.commitAuthorName}
-              width={8}
-              height={8}
+              width={32}
+              height={32}
               className="relative mt-3 h-8 w-8 flex-none rounded-full bg-gray-50"
             />
 
@@ -116,7 +122,7 @@ export default function CommitLog() {
                 </div>
               ) : (
                 <span className="whitespace-break-spaces text-sm leading-6 text-gray-600">
-                  {commit.summary || "Summary unavailable"}
+                  {formatTechnicalText(commit.summary || "Summary unavailable")}
                 </span>
               )}
             </div>

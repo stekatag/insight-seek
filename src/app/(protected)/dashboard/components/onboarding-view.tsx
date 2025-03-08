@@ -1,12 +1,14 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  Calendar,
+  FileText,
   Folder,
   Plus,
   Presentation,
-  Calendar,
-  FileText,
 } from "lucide-react";
+
+import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,7 +18,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ProjectSelector } from "@/components/project-selector";
-import useProject from "@/hooks/use-project";
 
 export default function OnboardingView() {
   const { projects, isLoading } = useProject();

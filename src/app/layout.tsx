@@ -6,7 +6,6 @@ import { type Metadata } from "next";
 
 import { TRPCReactProvider } from "@/trpc/react";
 import { Toaster } from "sonner";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "InsightSeek",
@@ -23,7 +22,6 @@ export default function RootLayout({
         <body>
           <TRPCReactProvider>{children}</TRPCReactProvider>
           <Toaster richColors />
-          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>

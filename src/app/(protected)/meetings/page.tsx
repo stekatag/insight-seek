@@ -1,17 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { api } from "@/trpc/react";
+import { Check, Clock, Eye, FileQuestion, Loader2 } from "lucide-react";
+
 import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
-import { api } from "@/trpc/react";
-import MeetingCard from "../dashboard/meeting-card";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  NoMeetingsEmptyState,
-  NoProjectEmptyState,
-} from "@/components/empty-states";
-import { Check, Clock, Eye, FileQuestion, Loader2 } from "lucide-react";
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import {
   Tooltip,
   TooltipContent,
@@ -19,12 +21,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import DeleteMeetingButton from "./delete-meeting-button";
-import { useState, useEffect } from "react";
+  NoMeetingsEmptyState,
+  NoProjectEmptyState,
+} from "@/components/empty-states";
+import MeetingCard from "@/components/meeting-card";
+
+import DeleteMeetingButton from "./components/delete-meeting-button";
 
 export default function MeetingsPage() {
   const { project, projectId } = useProject();

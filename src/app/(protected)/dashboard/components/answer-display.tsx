@@ -1,24 +1,25 @@
 "use client";
 
+import { Save, X } from "lucide-react";
+
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Save, X } from "lucide-react";
-import CodeReferences from "@/app/(protected)/dashboard/code-references";
-import MarkdownRenderer from "@/components/markdown-renderer";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import CodeReferences from "@/components/code-references";
 import { CollapsibleContent } from "@/components/collapsible-content";
-import { useIsMobile } from "@/hooks/use-mobile";
+import MarkdownRenderer from "@/components/markdown-renderer";
 
 interface FilesReference {
   fileName: string;

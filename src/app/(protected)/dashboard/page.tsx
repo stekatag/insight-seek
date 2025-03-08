@@ -1,15 +1,10 @@
 "use client";
 
-import { GitHubLogoIcon } from "@radix-ui/react-icons";
-import useProject from "@/hooks/use-project";
 import Link from "next/link";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { ExternalLink, Settings } from "lucide-react";
-import CommitLog from "./commit-log";
-import AskQuestionCard from "./ask-question-card";
-import MeetingCard from "./meeting-card";
-import DeleteProjectButton from "./delete-project-button";
-import OnboardingView from "./onboarding-view";
-import { Skeleton } from "@/components/ui/skeleton";
+
+import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +13,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import AskQuestionCard from "@/components/ask-question-card";
+import MeetingCard from "@/components/meeting-card";
+
+import CommitLog from "./components/commit-log";
+import DeleteProjectButton from "./components/delete-project-button";
+import OnboardingView from "./components/onboarding-view";
+import ProjectUrl from "./components/project-url";
 
 export default function DashboardPage() {
   const { project, isLoading } = useProject();
@@ -42,23 +45,7 @@ export default function DashboardPage() {
                 <h1 className="mb-3 text-2xl font-bold tracking-tight">
                   {project.name}
                 </h1>
-                <div className="mt-1 flex flex-wrap items-center gap-2 gap-y-1 text-sm text-muted-foreground">
-                  <Link
-                    href={project.githubUrl ?? ""}
-                    className="flex flex-col gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 sm:flex-row sm:items-center"
-                    target="_blank"
-                    title={project.githubUrl}
-                  >
-                    <GitHubLogoIcon className="h-5 w-5 sm:h-4 sm:w-4" />
-                    <div className="flex flex-col gap-1 text-sm sm:flex-row">
-                      <span>This project is linked to</span>
-                      <span className="border-primary/50 sm:border-b">
-                        {project.githubUrl}
-                      </span>
-                    </div>
-                    <ExternalLink className="h-4 w-4" />
-                  </Link>
-                </div>
+                <ProjectUrl project={project} />
               </div>
 
               {/* Project Actions */}

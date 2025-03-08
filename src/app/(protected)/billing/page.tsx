@@ -1,16 +1,18 @@
 "use client";
 
-import { createCheckoutSession } from "@/lib/stripe";
-import { api } from "@/trpc/react";
-import { Package, TrendingUp } from "lucide-react";
 import { useState } from "react";
-import TransactionHistory from "./transaction-history";
+import { Package, TrendingUp } from "lucide-react";
+
+import { api } from "@/trpc/react";
+import { createCheckoutSession } from "@/lib/stripe";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { CreditBenefits } from "./components/credit-benefits";
+import { CurrentBalanceCard } from "./components/current-balance-card";
+import { CustomCreditAmount } from "./components/custom-credit-amount";
+import { PackageCards } from "./components/package-cards";
+import TransactionHistory from "./components/transaction-history";
 import { creditPackages } from "./credit-packages-data";
-import { CurrentBalanceCard } from "./current-balance-card";
-import { PackageCards } from "./package-cards";
-import { CustomCreditAmount } from "./custom-credit-amount";
-import { CreditBenefits } from "./credit-benefits";
 
 export default function BillingPage() {
   const { data: user, isLoading } = api.user.getMyCredits.useQuery();

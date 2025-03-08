@@ -39,6 +39,43 @@ export function truncateText(
 }
 
 /**
+ * Formats text containing file paths or long technical references to make them breakable
+ * in HTML without overflowing containers
+ *
+ * @param text The text to format
+ * @param maxLength Optional length to truncate first (0 means no truncation)
+ * @returns Formatted text with zero-width spaces inserted at appropriate break points
+ */
+export function formatTechnicalText(
+  text: string,
+  maxLength: number = 0,
+): string {
+  if (!text) return "Text unavailable";
+
+  // Truncate if needed
+  if (maxLength > 0 && text.length > maxLength) {
+    text = truncateText(text, maxLength);
+  }
+
+  return (
+    text
+      // Add zero-width spaces after punctuation in file paths
+      .replace(/\//g, "/\u200B")
+      .replace(/\./g, ".\u200B")
+      .replace(/\-/g, "-\u200B")
+      .replace(/\_/g, "_\u200B")
+      // Add breaks after brackets and parentheses
+      .replace(/\[/g, "[\u200B")
+      .replace(/\]/g, "]\u200B")
+      .replace(/\(/g, "(\u200B")
+      .replace(/\)/g, ")\u200B")
+      // Add breaks after common separators in technical text
+      .replace(/,/g, ",\u200B")
+      .replace(/:/g, ":\u200B")
+  );
+}
+
+/**
  * Predefined truncation limits for different content types
  */
 export const TRUNCATION_LIMITS = {
