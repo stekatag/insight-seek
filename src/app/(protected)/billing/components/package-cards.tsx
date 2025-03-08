@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CreditCard, Info, Loader2 } from "lucide-react";
+import { Check, CreditCard, Info } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
