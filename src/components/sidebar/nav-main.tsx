@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, CreditCard, LayoutDashboard, Presentation } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -14,29 +13,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-// Navigation items for the main application
-const navItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Q&A",
-    url: "/qa",
-    icon: Bot,
-  },
-  {
-    title: "Meetings",
-    url: "/meetings",
-    icon: Presentation,
-  },
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: CreditCard,
-  },
-];
+import { navMainItems } from "./sidebar-data";
 
 interface NavMainProps {
   handleNavigation: () => void;
@@ -50,7 +27,7 @@ export default function NavMain({ handleNavigation }: NavMainProps) {
       <SidebarGroupLabel>Application</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {navItems.map((item) => (
+          {navMainItems.map((item) => (
             <SidebarMenuItem key={item.url}>
               <SidebarMenuButton asChild onClick={handleNavigation}>
                 <Link

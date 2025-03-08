@@ -192,7 +192,7 @@ export function formatCodeFragments(text: string): React.ReactNode {
  */
 function processCodeAndPaths(line: string, lineIndex: number): React.ReactNode {
   const parts: React.ReactNode[] = [];
-  let backtickParts = line.split(/(`[^`]+`)/g);
+  const backtickParts = line.split(/(`[^`]+`)/g);
 
   // Process each part from the backtick split
   backtickParts.forEach((part, partIndex) => {

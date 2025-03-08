@@ -1,40 +1,52 @@
 "use client";
 
-import { useCallback } from "react";
-import Image from "next/image";
+import Link from "next/link";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 
+import ApplicationLogo from "../application-logo";
 import NavLinks from "./nav-links";
 import NavMain from "./nav-main";
 import NavProjects from "./nav-projects";
 import NavUser from "./nav-user";
 
 export default function AppSidebar() {
-  const { open, setOpen } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
 
   // Function to close sidebar on mobile when navigating
-  const handleNavigation = useCallback(() => {
+  const handleNavigation = () => {
     // Only close the sidebar on small screens
-    if (window.innerWidth < 768) {
-      setOpen(false);
+    if (isMobile) {
+      setOpenMobile(false);
     }
-  }, [setOpen]);
+  };
 
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
-        <div className="flex items-center gap-2">
-          <Image src="/logo.svg" width={40} height={40} alt="logo" />
-          {open && (
-            <h1 className="text-xl font-bold text-primary/80">InsightSeek</h1>
-          )}
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link href="/dashboard">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <ApplicationLogo className="p-1.5" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">InsightSeek</span>
+                  <span className="truncate text-xs">Dashboard</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>

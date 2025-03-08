@@ -4,14 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import {
   AlertTriangle,
   CheckCircle2,
   CreditCard,
   ExternalLink,
-  Github,
   Info,
-  Loader2,
   X,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -19,7 +18,6 @@ import { toast } from "sonner";
 import * as z from "zod";
 
 import { api } from "@/trpc/react";
-import { createCheckoutSession } from "@/lib/stripe";
 import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -138,9 +136,9 @@ export default function CreatePage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl py-8">
+    <div className="mx-auto max-w-2xl py-6">
       <div className="mb-8 space-y-2 text-center">
-        <Github className="mx-auto h-10 w-10" />
+        <GitHubLogoIcon className="mx-auto h-10 w-10" />
         <h1 className="text-3xl font-bold">Create a new project</h1>
         <p className="text-muted-foreground">
           Link your GitHub repository to get started with insights

@@ -45,7 +45,7 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl py-8">
+    <div className="mx-auto max-w-6xl pb-6 md:py-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Credits & Billing</h1>
         <p className="mt-2 text-muted-foreground">

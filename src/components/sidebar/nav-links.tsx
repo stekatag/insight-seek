@@ -1,6 +1,9 @@
-import Link from "next/link";
-import { HelpCircle, Home } from "lucide-react";
+"use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { cn } from "@/lib/utils";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,32 +13,35 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-interface NavUserProps {
+import { navLinkItems } from "./sidebar-data";
+
+interface NavLinksProps {
   handleNavigation: () => void;
 }
 
-export default function NavLinks({ handleNavigation }: NavUserProps) {
+export default function NavLinks({ handleNavigation }: NavLinksProps) {
+  const pathname = usePathname();
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Navigation</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild onClick={handleNavigation}>
-              <Link href="/">
-                <Home className="size-4" />
-                <span>Home</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild onClick={handleNavigation}>
-              <Link href="/contact">
-                <HelpCircle className="size-4" />
-                <span>Contact</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {navLinkItems.map((item) => (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton asChild onClick={handleNavigation}>
+                <Link
+                  href={item.url}
+                  className={cn({
+                    "!bg-primary !text-white": pathname === item.url,
+                  })}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
