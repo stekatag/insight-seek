@@ -4,17 +4,19 @@ import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 
 import { api } from "@/trpc/react";
 import {
   cn,
+  formatCodeFragments,
   formatTechnicalText,
   truncateText,
   TRUNCATION_LIMITS,
 } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
@@ -103,10 +105,10 @@ export default function CommitLog() {
                 </time>
               </div>
               <span
-                className="mb-2 block font-semibold"
+                className="mb-2 block break-words font-semibold"
                 title={commit.commitMessage}
               >
-                {truncateText(
+                {formatTechnicalText(
                   commit.commitMessage,
                   TRUNCATION_LIMITS.COMMIT_MESSAGE,
                 )}
@@ -117,13 +119,13 @@ export default function CommitLog() {
 
               {commit.summary === "Analyzing commit..." ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="small" />
                   <span>Generating summary...</span>
                 </div>
               ) : (
-                <span className="whitespace-break-spaces text-sm leading-6 text-gray-600">
-                  {formatTechnicalText(commit.summary || "Summary unavailable")}
-                </span>
+                <div className="break-words text-sm leading-6 text-gray-600">
+                  {formatCodeFragments(commit.summary || "Summary unavailable")}
+                </div>
               )}
             </div>
           </li>

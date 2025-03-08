@@ -1,10 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import useRefetch from "@/hooks/use-refetch";
-import { createCheckoutSession } from "@/lib/stripe";
-import { api } from "@/trpc/react";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,12 +14,23 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import * as z from "zod";
+
+import { api } from "@/trpc/react";
+import { createCheckoutSession } from "@/lib/stripe";
+import useRefetch from "@/hooks/use-refetch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -30,16 +40,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import Link from "next/link";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 const formSchema = z.object({
   projectName: z.string().min(3, {
@@ -244,7 +246,7 @@ export default function CreatePage() {
               {/* Validation states */}
               {validationState === "validating" && (
                 <Alert className="bg-blue-50">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <Spinner size="small" />
                   <AlertTitle>Validating repository...</AlertTitle>
                   <AlertDescription>
                     Please wait while we check your GitHub repository.
@@ -335,7 +337,7 @@ export default function CreatePage() {
                 ? "Validate Repository"
                 : "Create Project"}
               {(createProject.isPending || checkCredits.isPending) && (
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                <Spinner className="ml-2" size="small" />
               )}
             </Button>
           </div>

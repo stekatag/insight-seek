@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/trpc/react";
 import { Check, Clock, Eye, FileQuestion, Loader2 } from "lucide-react";
 
+import { api } from "@/trpc/react";
 import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -119,7 +120,7 @@ export default function MeetingsPage() {
       {isLoading ? (
         <div className="flex items-center justify-center rounded-lg border py-8">
           <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Spinner size="medium" />
             <span>Loading meetings...</span>
           </div>
         </div>
@@ -156,7 +157,10 @@ export default function MeetingsPage() {
                               <h4 className="text-sm font-semibold">
                                 Processing In Progress
                               </h4>
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              <Spinner
+                                size="small"
+                                className="text-muted-foreground"
+                              />
                             </div>
                             <p className="text-sm text-muted-foreground">
                               Your meeting is being analyzed. This can take

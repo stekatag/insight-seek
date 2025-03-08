@@ -1,53 +1,52 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useRef, useState } from "react";
+import { buildStyles, CircularProgressbar } from "react-circular-progressbar";
 import { useDropzone } from "react-dropzone";
-import { useState, useRef } from "react";
+
 import { uploadFile } from "@/lib/firebase";
-import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+
 import "react-circular-progressbar/dist/styles.css";
-import {
-  Presentation,
-  Upload,
-  Clock,
-  CreditCard,
-  AlertCircle,
-  Loader2,
-  Info,
-  X,
-  Check,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { api } from "@/trpc/react";
-import useProject from "@/hooks/use-project";
-import { toast } from "sonner";
+
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
-import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog";
+  AlertCircle,
+  Check,
+  Clock,
+  CreditCard,
+  Info,
+  Presentation,
+  Upload,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { api } from "@/trpc/react";
 import {
   calculateMeetingCredits,
   formatMeetingDuration,
   getDurationMinutes,
 } from "@/lib/credits";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import Link from "next/link";
+import { cn } from "@/lib/utils";
+import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import { Spinner } from "./ui/spinner";
 
 export default function MeetingCard() {
   const { project } = useProject();
@@ -406,7 +405,7 @@ export default function MeetingCard() {
                   }
                 >
                   {uploadMeeting.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="small" />
                   ) : (
                     <Check className="h-4 w-4" />
                   )}

@@ -1,5 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { Loader2, Trash } from "lucide-react";
+import { toast } from "sonner";
+
+import { api } from "@/trpc/react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,10 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/trpc/react";
-import { Trash, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { Spinner } from "@/components/ui/spinner";
 
 interface DeleteMeetingButtonProps {
   meetingId: string;
@@ -83,13 +85,13 @@ export default function DeleteMeetingButton({
             >
               {deleteMeeting.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
+                  <Spinner size="small" className="mr-2" />
+                  <span>Deleting...</span>
                 </>
               ) : (
                 <>
                   <Trash className="mr-2 h-4 w-4" />
-                  Delete Meeting
+                  <span>Delete Meeting</span>
                 </>
               )}
             </Button>

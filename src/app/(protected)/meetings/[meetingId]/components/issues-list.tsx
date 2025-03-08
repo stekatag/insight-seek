@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { api, RouterOutputs } from "@/trpc/react";
 import { readStreamableValue } from "ai/rsc";
 import {
   ArrowUpRight,
   CircleAlert,
   Clock,
   FileText,
-  Loader2,
   MessageSquare,
   VideoIcon,
 } from "lucide-react";
 
+import { api, RouterOutputs } from "@/trpc/react";
 import { formatDuration } from "@/lib/format-duration";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { CollapsibleContent } from "@/components/collapsible-content";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
@@ -222,7 +222,7 @@ function IssueCard({
                 className="w-full sm:w-auto"
               >
                 {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="small" />
                 ) : (
                   <MessageSquare className="h-4 w-4" />
                 )}

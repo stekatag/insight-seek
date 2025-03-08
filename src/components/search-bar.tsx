@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
+import {
+  Folder,
+  GitCommit,
+  Loader2,
+  MessageSquare,
+  Presentation,
+  SearchIcon,
+} from "lucide-react";
 import { useDebounceValue } from "usehooks-ts";
+
 import { api } from "@/trpc/react";
+import { truncateText, TRUNCATION_LIMITS } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -16,18 +29,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
-import {
-  SearchIcon,
-  Folder,
-  GitCommit,
-  MessageSquare,
-  Presentation,
-  Loader2,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { truncateText, TRUNCATION_LIMITS } from "@/lib/utils";
+
+import { Spinner } from "./ui/spinner";
 
 export function SearchBar() {
   const router = useRouter();
@@ -132,7 +135,7 @@ export function SearchBar() {
             <CommandList>
               {(isLoading || isFetching) && debouncedSearchTerm.length >= 2 && (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <Spinner size="small" className="text-muted-foreground" />
                 </div>
               )}
 

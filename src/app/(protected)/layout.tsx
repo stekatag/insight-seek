@@ -1,7 +1,6 @@
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { UserButton } from "@clerk/nextjs";
-import AppSidebar from "./app-sidebar";
-import { SearchBar } from "@/components/search-bar";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import AppSidebar from "@/components/sidebar/app-sidebar";
+import TopBar from "@/components/top-bar";
 
 type Props = {
   children: React.ReactNode;
@@ -11,16 +10,10 @@ export default function SidebarLayout({ children }: Props) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="m-2 w-full">
-        <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar px-4 py-2 shadow">
-          <SidebarTrigger />
-          <SearchBar />
-          <div className="ml-auto"></div>
-          <UserButton />
-        </div>
-        <div className="h-4"></div>
+      <main className="flex w-full flex-col">
+        <TopBar />
         {/* main content */}
-        <div className="rounde-md min-h-[calc(100vh-6rem)] rounded-md border border-sidebar-border bg-sidebar p-4 shadow">
+        <div className="m-2 min-h-[calc(100vh-5rem)] rounded-md border border-sidebar-border bg-sidebar p-4 shadow">
           {children}
         </div>
       </main>

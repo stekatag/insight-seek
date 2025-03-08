@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/trpc/react";
 import { AlertTriangle, ArrowLeft, Clock, Loader2 } from "lucide-react";
 
+import { api } from "@/trpc/react";
 import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 import IssuesList from "./components/issues-list";
 
@@ -26,7 +27,7 @@ export default function MeetingDetailPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
+        <Spinner size="large" className="mb-4" />
         <p className="text-lg text-muted-foreground">Loading meeting data...</p>
       </div>
     );
@@ -84,7 +85,7 @@ export default function MeetingDetailPage() {
         <div className="mt-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed bg-muted/40 p-8 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
-              <Loader2 className="h-6 w-6 animate-spin text-yellow-600" />
+              <Spinner size="medium" className="text-yellow-600" />
             </div>
             <h3 className="text-lg font-medium">Analyzing your meeting</h3>
             <p className="max-w-md text-sm text-muted-foreground">

@@ -79,7 +79,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-y-4 md:gap-x-4 lg:grid-cols-5">
             <AskQuestionCard />
             <MeetingCard />
           </div>
@@ -108,7 +108,7 @@ function DashboardSkeleton() {
       </div>
 
       {/* Cards skeleton */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-y-4 md:gap-x-4 lg:grid-cols-5">
         <Skeleton className="h-64 sm:col-span-3" />
         <Skeleton className="h-64 sm:col-span-2" />
       </div>

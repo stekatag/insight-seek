@@ -1,5 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+
+import { api } from "@/trpc/react";
+import useProject from "@/hooks/use-project";
+import useRefetch from "@/hooks/use-refetch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,13 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import useProject from "@/hooks/use-project";
-import useRefetch from "@/hooks/use-refetch";
-import { api } from "@/trpc/react";
-import { Trash2, Loader2, X } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/spinner";
 
 interface DeleteProjectButtonProps {
   minimal?: boolean;
@@ -140,7 +142,7 @@ export default function DeleteProjectButton({
             >
               {deleteProject.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="small" />
                   Deleting...
                 </>
               ) : (

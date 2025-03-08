@@ -1,5 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { CheckCircle, CreditCard, Loader2, Plus } from "lucide-react";
+
+import { api } from "@/trpc/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,11 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { api } from "@/trpc/react";
-import { CheckCircle, CreditCard, Loader2, Plus } from "lucide-react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Spinner } from "@/components/ui/spinner";
 
 // Client component that uses useSearchParams
 function PaymentSuccessContent() {
@@ -43,7 +45,7 @@ function PaymentSuccessContent() {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Spinner size="medium" />
             </div>
           ) : (
             <p className="text-3xl font-bold">{user?.credits || 0} credits</p>
@@ -77,7 +79,7 @@ export default function PaymentSuccessPage() {
         fallback={
           <Card className="w-full">
             <CardContent className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Spinner size="large" />
             </CardContent>
           </Card>
         }

@@ -136,7 +136,7 @@ export function PackageCards({
             >
               {isCheckingOut && processingPackageId === pkg.id ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="small" />
                   <span>Processing...</span>
                 </>
               ) : (

@@ -1,8 +1,10 @@
 "use client";
 
+import { CreditCard, Info } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { CreditCard, Info, Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 interface CustomCreditAmountProps {
   creditAmount: number[];
@@ -66,7 +68,7 @@ export function CustomCreditAmount({
           >
             {isProcessing ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner size="small" />
                 <span>Processing...</span>
               </>
             ) : (
