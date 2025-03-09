@@ -1,3 +1,4 @@
+import { db } from "@/server/db";
 import { Octokit } from "octokit";
 
 import { getInstallationToken } from "./github-app";
@@ -25,44 +26,103 @@ export interface GitHubBranch {
 }
 
 /**
- * Fetches all repositories accessible to the user
+ * Verifies if a GitHub token is valid and has the required permissions
+ * Returns token status information
  */
-export async function getUserRepositories(
-  userId: string,
-): Promise<GitHubRepository[]> {
-  const token = await getInstallationToken(userId);
-
-  if (!token) {
-    return [];
-  }
-
-  const octokit = new Octokit({ auth: token });
-
+export async function verifyGitHubToken(userId: string): Promise<{
+  isValid: boolean;
+  error?: string;
+  installationId?: string;
+  username?: string;
+}> {
   try {
-    // With a GitHub App installation token, we need to directly list the accessible repositories
-    // We don't need to use /user/installations API which caused the 403 error
-    const { data } = await octokit.rest.apps.listReposAccessibleToInstallation({
-      per_page: 100,
+    // First, fetch user's GitHub token data from database
+    const userGithubToken = await db.userGitHubToken.findUnique({
+      where: { userId },
+      select: {
+        token: true,
+        installationId: true,
+        username: true,
+        tokenExpiresAt: true,
+      },
     });
 
-    // Map the repositories to our format
-    const repositories = data.repositories.map((repo) => ({
-      id: repo.id,
-      name: repo.name,
-      fullName: repo.full_name,
-      description: repo.description,
-      private: repo.private,
-      url: repo.url,
-      htmlUrl: repo.html_url,
-      updatedAt: repo.updated_at || "",
-      language: repo.language,
-    }));
+    if (!userGithubToken || !userGithubToken.token) {
+      return {
+        isValid: false,
+        error: "No GitHub token found",
+      };
+    }
 
-    // Sort by name for better display
-    return repositories.sort((a, b) => a.fullName.localeCompare(b.fullName));
-  } catch (error) {
-    console.error("Error fetching repositories:", error);
-    return [];
+    // For GitHub App tokens, the most reliable test is checking if we can list repositories
+    const octokit = new Octokit({ auth: userGithubToken.token });
+
+    try {
+      // This is the most important test for GitHub App installations
+      const { data } =
+        await octokit.rest.apps.listReposAccessibleToInstallation({
+          per_page: 1,
+        });
+
+      // If we get here, the token is working properly for repository access
+      // which is the main functionality we need
+      return {
+        isValid: true,
+        // Convert null to undefined for TypeScript compatibility
+        installationId: userGithubToken.installationId || undefined,
+        username: userGithubToken.username || undefined,
+      };
+    } catch (repoError: any) {
+      console.warn("Repository access check failed:", repoError);
+
+      // Try a fallback endpoint that might work with restricted scopes
+      try {
+        const { data: appData } = await octokit.rest.apps.getAuthenticated();
+
+        // If we can authenticate but can't list repos, token might have limited permissions
+        // but is still valid as an authentication token
+        return {
+          isValid: true, // Consider it valid if basic authentication works
+          installationId: userGithubToken.installationId || undefined,
+          username: userGithubToken.username || undefined,
+        };
+      } catch (appError) {
+        // If both checks fail, the token is likely invalid
+        console.error("App authentication failed:", appError);
+
+        // Check if token is expired based on our database record
+        const isExpired =
+          userGithubToken.tokenExpiresAt &&
+          new Date() > userGithubToken.tokenExpiresAt;
+
+        if (isExpired) {
+          // Try refreshing the token
+          const freshToken = await getInstallationToken(userId);
+
+          if (freshToken) {
+            return {
+              isValid: true,
+              installationId: userGithubToken.installationId || undefined,
+              username: userGithubToken.username || undefined,
+            };
+          }
+        }
+
+        return {
+          isValid: false,
+          error: isExpired
+            ? "Token has expired"
+            : "GitHub App authentication failed",
+        };
+      }
+    }
+  } catch (error: any) {
+    console.error("GitHub token verification error:", error);
+
+    return {
+      isValid: false,
+      error: `GitHub verification error: ${error.message || "Unknown error"}`,
+    };
   }
 }
 

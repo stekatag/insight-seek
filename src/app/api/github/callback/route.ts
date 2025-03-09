@@ -66,29 +66,41 @@ export async function GET(req: NextRequest) {
       await octokit.rest.apps.listReposAccessibleToInstallation({
         per_page: 1,
       });
+
+      // Get the authenticated user's username if possible
+      let username: string | undefined;
+      try {
+        const { data: userData } = await octokit.rest.users.getAuthenticated();
+        username = userData.login;
+      } catch (userError) {
+        console.warn("Could not get authenticated username:", userError);
+        // Not critical, we continue without username
+      }
+
+      // Store the installation details
+      await db.userGitHubToken.upsert({
+        where: { userId },
+        update: {
+          token,
+          installationId,
+          username,
+          // Store the timestamp when the token was generated
+          tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // GitHub tokens expire after 1 hour
+        },
+        create: {
+          userId,
+          token,
+          installationId,
+          username,
+          tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
     } catch (verifyError) {
       console.error("Token verification failed:", verifyError);
       return NextResponse.redirect(
         new URL("/create?error=token_verification_failed", req.url),
       );
     }
-
-    // Store the installation details
-    await db.userGitHubToken.upsert({
-      where: { userId },
-      update: {
-        token,
-        installationId,
-        // Store the timestamp when the token was generated
-        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // GitHub tokens expire after 1 hour
-      },
-      create: {
-        userId,
-        token,
-        installationId,
-        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
-    });
 
     // Redirect back to the create page with a success message
     return NextResponse.redirect(

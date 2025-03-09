@@ -12,13 +12,13 @@ const getFileCount = async (
   githubRepo: string,
   branch: string,
   acc: number = 0,
-) => {
+): Promise<number> => {
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner: githubOwner,
       repo: githubRepo,
       path: path,
-      ref: branch, // Use the specified branch
+      ref: branch,
     });
 
     if (!Array.isArray(data) && data.type === "file") {
@@ -27,61 +27,133 @@ const getFileCount = async (
 
     if (Array.isArray(data)) {
       let fileCount = 0;
+
+      // Limit the number of directories we process to avoid rate limits
       const directories: string[] = [];
 
       // Count files and collect directories in current level
       for (const item of data) {
         if (item.type === "dir") {
-          directories.push(item.path);
+          // Skip node_modules and similar directories
+          if (!shouldSkipDirectory(item.path)) {
+            directories.push(item.path);
+          }
         } else {
           fileCount += 1;
         }
       }
 
-      // Process all directories at this level in parallel
-      if (directories.length > 0) {
-        const directoryCounts = await Promise.all(
-          directories.map((dirPath) =>
-            getFileCount(dirPath, octokit, githubOwner, githubRepo, branch, 0),
-          ),
+      // Limit the number of directories we'll process to avoid hitting rate limits
+      const MAX_DIRS_TO_PROCESS = 20;
+      const dirsToProcess = directories.slice(0, MAX_DIRS_TO_PROCESS);
+
+      if (directories.length > MAX_DIRS_TO_PROCESS) {
+        console.log(
+          `Limiting directory scan to ${MAX_DIRS_TO_PROCESS} directories out of ${directories.length}`,
         );
-        fileCount += directoryCounts.reduce((sum, count) => sum + count, 0);
+        // Add an estimate for skipped directories
+        fileCount += (directories.length - MAX_DIRS_TO_PROCESS) * 5; // Assume 5 files per directory
+      }
+
+      // Process directories in sequence to reduce concurrent requests
+      for (const dirPath of dirsToProcess) {
+        // Add a small delay to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const dirCount = await getFileCount(
+          dirPath,
+          octokit,
+          githubOwner,
+          githubRepo,
+          branch,
+          0,
+        );
+        fileCount += dirCount;
       }
 
       return acc + fileCount;
     }
 
     return acc;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error counting files for path ${path}:`, error);
-    // Return 0 for this path if there's an error
+
+    // If we hit rate limits, make a reasonable estimate
+    if (
+      error.status === 403 &&
+      error.message?.includes("API rate limit exceeded")
+    ) {
+      console.warn("Rate limit exceeded during file count, using estimate");
+      return acc + 5; // Assume approximately 5 files per directory when rate limited
+    }
+
+    // Skip this path if there's an error
     return acc;
   }
 };
+
+// Helper function to determine if we should skip a directory
+function shouldSkipDirectory(path: string): boolean {
+  const skipDirs = [
+    "node_modules",
+    "dist",
+    "build",
+    ".git",
+    "coverage",
+    ".next",
+    "vendor",
+    "tmp",
+    ".github",
+  ];
+
+  return skipDirs.some((dir) => path.includes(dir));
+}
 
 export const checkCredits = async (
   githubUrl: string,
   branch: string,
   githubToken?: string,
-) => {
-  const octokit = new Octokit({
-    auth: githubToken,
-  });
-  const githubOwner = githubUrl.split("/")[3];
-  const githubRepo = githubUrl.split("/")[4];
+): Promise<number> => {
+  try {
+    const octokit = new Octokit({
+      auth: githubToken,
+    });
 
-  if (!githubOwner || !githubRepo) return 0;
+    const githubOwner = githubUrl.split("/")[3];
+    const githubRepo = githubUrl.split("/")[4];
 
-  const fileCount = await getFileCount(
-    "",
-    octokit,
-    githubOwner,
-    githubRepo,
-    branch,
-    0,
-  );
+    if (!githubOwner || !githubRepo) return 0;
 
-  return fileCount;
+    // Check rate limit before making calls
+    try {
+      const { data: rateLimit } = await octokit.rest.rateLimit.get();
+      console.log(
+        `Rate limit remaining: ${rateLimit.resources.core.remaining}/${rateLimit.resources.core.limit}`,
+      );
+
+      if (rateLimit.resources.core.remaining < 10) {
+        console.warn("GitHub API rate limit almost exhausted!");
+        // Continue anyway, but at reduced detail level
+      }
+    } catch (rateLimitError) {
+      console.error("Failed to check rate limits:", rateLimitError);
+      // Continue with the operation
+    }
+
+    const fileCount = await getFileCount(
+      "",
+      octokit,
+      githubOwner,
+      githubRepo,
+      branch,
+      0,
+    );
+
+    return fileCount;
+  } catch (error) {
+    console.error("Error checking credits:", error);
+    // Return a reasonable default if we hit rate limits
+    return 100; // Default estimate if we can't get actual count
+  }
 };
 
 export async function loadGithubRepo(

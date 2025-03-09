@@ -224,58 +224,78 @@ export const projectRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.userId!;
 
-      // Get the user's GitHub token if they have one
-      const token = await getInstallationToken(userId);
+      try {
+        // Get the user's GitHub token if they have one
+        const token = await getInstallationToken(userId);
 
-      // Ensure token is either string or undefined, not null
-      const githubToken = token || undefined;
+        // Ensure token is either string or undefined, not null
+        const githubToken = token || undefined;
 
-      // Validate the repository
-      const validationResult = await validateGitHubRepo(
-        input.githubUrl,
-        githubToken,
-      );
+        // Validate the repository
+        const validationResult = await validateGitHubRepo(
+          input.githubUrl,
+          githubToken,
+        );
 
-      if (!validationResult.isValid) {
+        if (!validationResult.isValid) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: validationResult.error || "Invalid repository",
+          });
+        }
+
+        // For private repos, require GitHub App installation
+        if (!validationResult.isPublic && !token) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Private repository requires GitHub App installation",
+          });
+        }
+
+        // Get user credits
+        const user = await ctx.db.user.findUnique({
+          where: { id: userId },
+          select: { credits: true },
+        });
+
+        if (!user) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found",
+          });
+        }
+
+        // Try to get actual file count with specific branch, but have fallbacks
+        let fileCount: number;
+        try {
+          fileCount = await checkCredits(
+            input.githubUrl,
+            input.branch,
+            githubToken,
+          );
+        } catch (countError) {
+          console.error("Error getting exact file count:", countError);
+
+          // Use a fallback estimate if exact count fails
+          fileCount = validationResult.fileCount || 100;
+          console.log(`Using estimated file count: ${fileCount}`);
+        }
+
+        return {
+          fileCount: fileCount || 0,
+          userCredits: user.credits,
+          repoName: validationResult.repoFullName,
+          isPrivate: !validationResult.isPublic,
+        };
+      } catch (error) {
+        console.error("Error checking credits:", error);
         throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: validationResult.error || "Invalid repository",
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to check repository credits",
         });
       }
-
-      // For private repos, require GitHub App installation
-      if (!validationResult.isPublic && !token) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Private repository requires GitHub App installation",
-        });
-      }
-
-      // Get user credits
-      const user = await ctx.db.user.findUnique({
-        where: { id: userId },
-        select: { credits: true },
-      });
-
-      if (!user) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "User not found",
-        });
-      }
-
-      // Check credits with specific branch
-      const fileCount = await checkCredits(
-        input.githubUrl,
-        input.branch,
-        githubToken,
-      );
-
-      return {
-        fileCount: fileCount || 0,
-        userCredits: user.credits,
-        repoName: validationResult.repoFullName,
-        isPrivate: !validationResult.isPublic,
-      };
     }),
 });

@@ -321,7 +321,6 @@ export default function ProjectCreationCard({
             {/* Validation states */}
             {validationState === "validating" && (
               <Alert className="bg-blue-50">
-                <Spinner size="small" />
                 <AlertTitle>Validating repository...</AlertTitle>
                 <AlertDescription>
                   Please wait while we check your GitHub repository.
@@ -357,7 +356,7 @@ export default function ProjectCreationCard({
                 <AlertDescription>
                   <div className="space-y-1 text-sm">
                     <p>
-                      Files to index:{" "}
+                      Credits required:{" "}
                       <strong>{checkCredits.data.fileCount}</strong>
                     </p>
                     <p>
