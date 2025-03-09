@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import * as z from "zod";
 
 import useRefetch from "@/hooks/use-refetch";
 import { Form } from "@/components/ui/form";
+import { Spinner } from "@/components/ui/spinner";
 
 import GitHubConnectionStatus from "./components/github-connection-status";
 import ProjectCreationCard from "./components/project-creation-card";
@@ -28,11 +29,12 @@ const formSchema = z.object({
 
 export type CreateProjectFormData = z.infer<typeof formSchema>;
 
-export default function CreatePage() {
+// Create a component that uses useSearchParams
+function CreatePageContent() {
   const router = useRouter();
   const { user } = useUser();
-  const searchParams = useSearchParams();
   const refetch = useRefetch();
+  const searchParams = useSearchParams();
 
   // Check for GitHub connection status in URL params
   const githubConnected = searchParams.get("github_connected") === "true";
@@ -67,7 +69,7 @@ export default function CreatePage() {
   }, [githubConnected, githubError, setupAction, router]);
 
   return (
-    <div className="mx-auto max-w-2xl py-6">
+    <>
       <div className="mb-8 space-y-2 text-center">
         <GitHubLogoIcon className="mx-auto h-10 w-10" />
         <h1 className="text-3xl font-bold">Create a new project</h1>
@@ -90,6 +92,24 @@ export default function CreatePage() {
           }}
         />
       </Form>
+    </>
+  );
+}
+
+// Main component with Suspense
+export default function CreatePage() {
+  return (
+    <div className="mx-auto max-w-2xl py-6">
+      <Suspense
+        fallback={
+          <div className="flex flex-col items-center justify-center py-12">
+            <Spinner size="large" />
+            <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+          </div>
+        }
+      >
+        <CreatePageContent />
+      </Suspense>
     </div>
   );
 }

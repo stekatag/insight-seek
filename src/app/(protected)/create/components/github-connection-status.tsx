@@ -281,7 +281,7 @@ export default function GitHubConnectionStatus() {
                 <AlertTitle className="text-green-700">
                   GitHub Connected
                 </AlertTitle>
-                <AlertDescription className="flex items-center justify-between text-green-600">
+                <AlertDescription className="flex flex-col gap-2 sm:gap-1 sm:flex-row sm:items-center justify-between text-green-600">
                   <div>
                     <span>
                       GitHub App is installed. You can access private
@@ -293,7 +293,7 @@ export default function GitHubConnectionStatus() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex  items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"

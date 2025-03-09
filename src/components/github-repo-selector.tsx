@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { AlertTriangle, Eye, Lock, RefreshCw, Search, X } from "lucide-react";
@@ -45,14 +45,8 @@ export default function GitHubRepoSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch repositories on mount
-  useEffect(() => {
-    if (isOpen && userId) {
-      fetchRepositories();
-    }
-  }, [isOpen, userId]);
-
-  const fetchRepositories = async () => {
+  // Define fetchRepositories with useCallback to avoid recreating the function
+  const fetchRepositories = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -102,7 +96,14 @@ export default function GitHubRepoSelector({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router, onClose]);
+
+  // Fetch repositories on mount
+  useEffect(() => {
+    if (isOpen && userId) {
+      fetchRepositories();
+    }
+  }, [isOpen, userId, fetchRepositories]);
 
   // Filter repositories by search query
   const filteredRepos = repositories.filter((repo) => {

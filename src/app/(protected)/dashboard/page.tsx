@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
@@ -27,7 +27,8 @@ import DeleteProjectButton from "./components/delete-project-button";
 import OnboardingView from "./components/onboarding-view";
 import ProjectUrl from "./components/project-url";
 
-export default function DashboardPage() {
+// Component that uses useSearchParams - must be wrapped in Suspense
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const newProjectId = searchParams.get("newProject");
@@ -172,6 +173,21 @@ export default function DashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+// Main dashboard page component that properly wraps content with Suspense
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <DashboardSkeleton />
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }
 

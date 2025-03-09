@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, ChevronDown, GitBranch, RefreshCw } from "lucide-react";
 
 import { GitHubBranch } from "@/lib/github-api";
@@ -41,13 +41,10 @@ export default function GitHubBranchSelector({
   const displayBranch =
     branches.find((b) => b.name === selectedBranch)?.name || selectedBranch;
 
-  useEffect(() => {
-    if (repoOwner && repoName) {
-      fetchBranches();
-    }
-  }, [repoOwner, repoName]);
+  // Define fetchBranches with useCallback to avoid recreating the function on every render
+  const fetchBranches = useCallback(async () => {
+    if (!repoOwner || !repoName) return;
 
-  const fetchBranches = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -77,7 +74,13 @@ export default function GitHubBranchSelector({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [repoOwner, repoName, selectedBranch, onSelectBranch]);
+
+  useEffect(() => {
+    if (repoOwner && repoName) {
+      fetchBranches();
+    }
+  }, [repoOwner, repoName, fetchBranches]);
 
   return (
     <div className="flex items-center space-x-2">

@@ -212,7 +212,7 @@ export default function ProjectCreationCard({
 
             {/* Repository Selection */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:items-center justify-between">
                 <FormLabel className="text-sm font-medium">
                   GitHub Repository
                 </FormLabel>
@@ -224,7 +224,7 @@ export default function ProjectCreationCard({
                     onClick={() => setIsRepoSelectorOpen(true)}
                     className="shrink-0"
                   >
-                    <Plus className="mr-1 h-4 w-4" />
+                    <Plus className="h-4 w-4" />
                     <span>Browse Repositories</span>
                   </Button>
                 )}
@@ -377,21 +377,21 @@ export default function ProjectCreationCard({
             )}
           </form>
         </CardContent>
-        <CardFooter className="flex justify-between gap-2">
+        <CardFooter className="flex flex-col sm:flex-row items-start sm:justify-between gap-2">
           <Button
             variant="outline"
             onClick={() => (window.location.href = "/dashboard")}
             disabled={createProject.isPending}
           >
-            <X className="h-4 w-4 mr-1.5" />
+            <X className="h-4 w-4" />
             <span>Cancel</span>
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {!hasEnoughCredits && validationState === "validated" && (
               <Link href="/billing">
                 <Button disabled={createProject.isPending}>
-                  <CreditCard className="h-4 w-4 mr-1.5" />
+                  <CreditCard className="h-4 w-4 " />
                   <span>Buy Credits</span>
                 </Button>
               </Link>
@@ -413,7 +413,7 @@ export default function ProjectCreationCard({
                 ? "Validate Repository"
                 : "Create Project"}
               {(createProject.isPending || checkCredits.isPending) && (
-                <Spinner className="ml-2" size="small" />
+                <Spinner className="ml-2 text-white" size="small" />
               )}
             </Button>
           </div>
