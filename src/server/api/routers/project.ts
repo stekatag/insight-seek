@@ -1,8 +1,12 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createTRPCRouter, protectedProdecure } from "../trpc";
+
 import { pullCommits } from "@/lib/github";
+import { getInstallationToken } from "@/lib/github-app";
 import { checkCredits, indexGithubRepo } from "@/lib/github-loader";
 import { validateGitHubRepo } from "@/lib/github-validator";
+
+import { createTRPCRouter, protectedProdecure } from "../trpc";
 
 export const projectRouter = createTRPCRouter({
   // Validate GitHub repository
@@ -14,7 +18,9 @@ export const projectRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      return await validateGitHubRepo(input.githubUrl, input.githubToken);
+      // Convert null to undefined to satisfy TypeScript
+      const token = input.githubToken || undefined;
+      return await validateGitHubRepo(input.githubUrl, token);
     }),
 
   // Create a new project
@@ -23,88 +29,107 @@ export const projectRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         githubUrl: z.string(),
-        githubToken: z.string().optional(),
+        branch: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // First validate the repository
+      const userId = ctx.user.userId!;
+
+      // Get the user's GitHub token if they have one
+      const token = await getInstallationToken(userId);
+
+      // Ensure token is either string or undefined, not null
+      const githubToken = token || undefined;
+
+      // Validate the repository
       const validationResult = await validateGitHubRepo(
         input.githubUrl,
-        input.githubToken,
+        githubToken,
       );
 
       if (!validationResult.isValid) {
-        throw new Error(validationResult.error || "Invalid GitHub repository");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: validationResult.error || "Invalid repository",
+        });
       }
 
-      // If repo is private but no token provided
-      if (!validationResult.isPublic && !input.githubToken) {
-        throw new Error(
-          "This repository is private. Please provide a GitHub token.",
-        );
+      // For private repos, require GitHub App installation
+      if (!validationResult.isPublic && !token) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Private repository requires GitHub App installation",
+        });
       }
 
+      // Check if user has enough credits
       const user = await ctx.db.user.findUnique({
-        where: { id: ctx.user.userId! },
+        where: { id: userId },
         select: { credits: true },
       });
 
       if (!user) {
-        throw new Error("User not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
       }
 
-      const currentCredits = user.credits || 0;
-      const fileCount =
-        validationResult.fileCount ||
-        (await checkCredits(input.githubUrl, input.githubToken));
+      const fileCount = validationResult.fileCount || 0;
 
-      if (currentCredits < fileCount) {
-        throw Error("Insufficient credits");
+      if (user.credits < fileCount) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not enough credits to create this project",
+        });
       }
 
-      // Create project and index files in a transaction
+      // Create project and update credits in a transaction
       const project = await ctx.db.$transaction(async (tx) => {
         // Create the project
         const project = await tx.project.create({
           data: {
             name: input.name,
             githubUrl: input.githubUrl,
+            branch: input.branch, // Store the selected branch
             userToProjects: {
               create: {
-                userId: ctx.user.userId!,
+                userId: userId,
               },
             },
           },
         });
 
-        // If user provided a token, store it securely for future API calls
-        if (input.githubToken) {
-          await tx.userGitHubToken.upsert({
-            where: { userId: ctx.user.userId! },
-            update: { token: input.githubToken },
-            create: { userId: ctx.user.userId!, token: input.githubToken },
-          });
-        }
-
         // Update user credits
         await tx.user.update({
-          where: { id: ctx.user.userId! },
+          where: { id: userId },
           data: { credits: { decrement: fileCount } },
         });
 
         return project;
       });
 
-      // These can run in parallel after the transaction
-      const indexPromise = indexGithubRepo(
-        project.id,
-        input.githubUrl,
-        input.githubToken,
-      );
-      const pullCommitsPromise = pullCommits(project.id);
+      try {
+        // Wait for the indexing to complete with the specified branch
+        console.log(`Starting source code indexing for project ${project.id}`);
+        // Ensure token is either string or undefined, not null
+        await indexGithubRepo(
+          project.id,
+          input.githubUrl,
+          input.branch,
+          githubToken,
+        );
+        console.log(`Source code indexing completed for project ${project.id}`);
 
-      // Wait for both operations to complete but catch errors
-      await Promise.allSettled([indexPromise, pullCommitsPromise]);
+        // Pull commits in the background - this can run asynchronously
+        void pullCommits(project.id).catch((error) => {
+          console.error("Failed to pull commits:", error);
+        });
+      } catch (error) {
+        console.error(`Error during repository indexing: ${error}`);
+        // Don't throw the error here - we've already created the project
+        // The user can try to reindex later if needed
+      }
 
       return project;
     }),
@@ -193,38 +218,62 @@ export const projectRouter = createTRPCRouter({
     .input(
       z.object({
         githubUrl: z.string(),
-        githubToken: z.string().optional(),
+        branch: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // First validate the repository
+      const userId = ctx.user.userId!;
+
+      // Get the user's GitHub token if they have one
+      const token = await getInstallationToken(userId);
+
+      // Ensure token is either string or undefined, not null
+      const githubToken = token || undefined;
+
+      // Validate the repository
       const validationResult = await validateGitHubRepo(
         input.githubUrl,
-        input.githubToken,
+        githubToken,
       );
 
       if (!validationResult.isValid) {
-        throw new Error(validationResult.error || "Invalid GitHub repository");
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: validationResult.error || "Invalid repository",
+        });
       }
 
-      // If repo is private but no token provided
-      if (!validationResult.isPublic && !input.githubToken) {
-        throw new Error(
-          "This repository is private. Please provide a GitHub token.",
-        );
+      // For private repos, require GitHub App installation
+      if (!validationResult.isPublic && !token) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Private repository requires GitHub App installation",
+        });
       }
 
-      const fileCount =
-        validationResult.fileCount ||
-        (await checkCredits(input.githubUrl, input.githubToken));
-      const userCredits = await ctx.db.user.findUnique({
-        where: { id: ctx.user.userId! },
+      // Get user credits
+      const user = await ctx.db.user.findUnique({
+        where: { id: userId },
         select: { credits: true },
       });
 
+      if (!user) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Check credits with specific branch
+      const fileCount = await checkCredits(
+        input.githubUrl,
+        input.branch,
+        githubToken,
+      );
+
       return {
-        fileCount,
-        userCredits: userCredits?.credits || 0,
+        fileCount: fileCount || 0,
+        userCredits: user.credits,
         repoName: validationResult.repoFullName,
         isPrivate: !validationResult.isPublic,
       };

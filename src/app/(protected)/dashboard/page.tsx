@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { ExternalLink, Settings } from "lucide-react";
+import { toast } from "sonner";
 
 import useProject from "@/hooks/use-project";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import AskQuestionCard from "@/components/ask-question-card";
 import MeetingCard from "@/components/meeting-card";
 
@@ -23,6 +28,67 @@ import OnboardingView from "./components/onboarding-view";
 import ProjectUrl from "./components/project-url";
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const newProjectId = searchParams.get("newProject");
+  const [indexingProject, setIndexingProject] = useState<string | null>(
+    newProjectId,
+  );
+  const [indexingStatus, setIndexingStatus] = useState<{
+    hasSourceCodeEmbeddings: boolean;
+    embeddingsCount: number;
+    isFullyIndexed: boolean;
+  } | null>(null);
+
+  // Fetch indexing status if we have a new project
+  useEffect(() => {
+    if (!indexingProject) return;
+
+    // Create a function to poll the indexing status
+    const checkIndexingStatus = async () => {
+      try {
+        const response = await fetch(
+          `/api/project-status?projectId=${indexingProject}`,
+        );
+
+        if (!response.ok) {
+          // If we get an error, stop polling
+          setIndexingProject(null);
+          return;
+        }
+
+        const data = await response.json();
+        setIndexingStatus(data.status);
+
+        // If the project is fully indexed, stop polling and clear the URL parameter
+        if (data.status.isFullyIndexed) {
+          setIndexingProject(null);
+
+          // Remove the newProject parameter from URL after successful indexing
+          const params = new URLSearchParams(window.location.search);
+          params.delete("newProject");
+          const newUrl =
+            window.location.pathname +
+            (params.toString() ? `?${params.toString()}` : "");
+          router.replace(newUrl);
+
+          // Show success message
+          toast.success("Project indexing completed successfully!");
+        }
+      } catch (error) {
+        console.error("Failed to check indexing status:", error);
+        setIndexingProject(null);
+      }
+    };
+
+    // Check immediately, then start polling
+    void checkIndexingStatus();
+    const interval = setInterval(checkIndexingStatus, 5000); // Check every 5 seconds
+
+    // Clean up the interval
+    return () => clearInterval(interval);
+  }, [indexingProject, router]);
+
   const { project, isLoading } = useProject();
   const hasProject = !!project;
 
@@ -33,6 +99,24 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Project indexing notification */}
+      {indexingProject && indexingStatus && (
+        <Alert className="animate-pulse bg-blue-50">
+          <Spinner size="small" className="text-blue-500" />
+          <AlertTitle>Project Indexing in Progress</AlertTitle>
+          <AlertDescription>
+            We're analyzing your project's source code. This might take a few
+            minutes.
+            {indexingStatus.embeddingsCount > 0 && (
+              <p className="mt-1 text-sm">
+                {indexingStatus.embeddingsCount} files have been processed so
+                far.
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!hasProject ? (
         <OnboardingView />
       ) : (

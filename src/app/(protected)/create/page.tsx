@@ -1,139 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CreditCard,
-  ExternalLink,
-  Info,
-  X,
-} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 
-import { api } from "@/trpc/react";
 import useRefetch from "@/hooks/use-refetch";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import { Form } from "@/components/ui/form";
 
+import GitHubConnectionStatus from "./components/github-connection-status";
+import ProjectCreationCard from "./components/project-creation-card";
+
+// Updated form schema - repoUrl is now hidden
 const formSchema = z.object({
   projectName: z.string().min(3, {
     message: "Project name must be at least 3 characters long",
   }),
-  repoUrl: z
-    .string()
-    .url({
-      message: "Please enter a valid URL",
-    })
-    .refine((url) => url.includes("github.com"), {
-      message: "URL must be a GitHub repository",
-    }),
-  githubToken: z.string().optional(),
+  repoUrl: z.string().url(), // Still required but hidden from user
+  branch: z.string().min(1, {
+    message: "Please select a branch",
+  }),
 });
 
-type FormData = z.infer<typeof formSchema>;
+export type CreateProjectFormData = z.infer<typeof formSchema>;
 
 export default function CreatePage() {
   const router = useRouter();
+  const { user } = useUser();
+  const searchParams = useSearchParams();
   const refetch = useRefetch();
 
-  const [validationState, setValidationState] = useState<
-    "idle" | "validating" | "validated" | "error"
-  >("idle");
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // Check for GitHub connection status in URL params
+  const githubConnected = searchParams.get("github_connected") === "true";
+  const setupAction = searchParams.get("setup_action");
+  const githubError = searchParams.get("error");
 
-  const form = useForm<FormData>({
+  const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       projectName: "",
       repoUrl: "",
-      githubToken: "",
+      branch: "",
     },
+    mode: "onChange", // This will validate on each change
   });
 
-  const createProject = api.project.createProject.useMutation({
-    onSuccess: () => {
-      toast.success("Project created successfully!");
-      refetch();
-      router.push("/dashboard");
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create project");
-      setValidationState("error");
-      setValidationError(error.message || "Failed to create project");
-    },
-  });
-
-  const checkCredits = api.project.checkCredits.useMutation({
-    onSuccess: (data) => {
-      setValidationState("validated");
-      if (data.fileCount > data.userCredits) {
-        toast.warning("You need more credits to create this project.");
-      }
-    },
-    onError: (error) => {
-      setValidationState("error");
-      setValidationError(error.message || "Invalid repository");
-      toast.error(error.message || "Failed to validate repository");
-    },
-  });
-
-  async function onSubmit(data: FormData) {
-    if (validationState === "validated" && checkCredits.data) {
-      // Proceed with project creation
-      createProject.mutate({
-        githubUrl: data.repoUrl,
-        name: data.projectName,
-        githubToken: data.githubToken || undefined,
-      });
-      return;
+  // Show a toast when GitHub is connected
+  useEffect(() => {
+    if (githubConnected) {
+      const action = setupAction === "update" ? "updated" : "connected";
+      toast.success(`GitHub ${action} successfully!`);
+      // Clear the URL parameter after showing the toast
+      router.replace("/create");
     }
 
-    // Otherwise, validate the repo first
-    setValidationState("validating");
-    setValidationError(null);
-
-    checkCredits.mutate({
-      githubUrl: data.repoUrl,
-      githubToken: data.githubToken || undefined,
-    });
-  }
-
-  const hasEnoughCredits = checkCredits.data?.userCredits
-    ? checkCredits.data.fileCount <= checkCredits.data.userCredits
-    : true;
-
-  // Create a function to reset the validation state
-  const resetValidation = () => {
-    setValidationState("idle");
-    setValidationError(null);
-    checkCredits.reset();
-  };
+    if (githubError) {
+      toast.error(
+        `GitHub connection failed: ${githubError.replace(/_/g, " ")}`,
+      );
+      router.replace("/create");
+    }
+  }, [githubConnected, githubError, setupAction, router]);
 
   return (
     <div className="mx-auto max-w-2xl py-6">
@@ -145,202 +76,20 @@ export default function CreatePage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Details</CardTitle>
-          <CardDescription>
-            Enter your project name and GitHub repository URL
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form
-              id="project-form"
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-6"
-            >
-              <FormField
-                control={form.control}
-                name="projectName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="My Awesome Project"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          resetValidation();
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      This is how your project will appear in the dashboard.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      {/* GitHub Connection Status Component */}
+      <GitHubConnectionStatus />
 
-              <FormField
-                control={form.control}
-                name="repoUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>GitHub Repository URL</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="https://github.com/username/repository"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          resetValidation();
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Enter the full URL to your GitHub repository.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="githubToken"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>GitHub Token (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="ghp_xxx..."
-                        type="password"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          resetValidation();
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Required for private repositories.
-                      <a
-                        href="https://github.com/settings/tokens"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-1 inline-flex items-center text-primary hover:underline"
-                      >
-                        Create a token{" "}
-                        <ExternalLink className="ml-0.5 h-3 w-3" />
-                      </a>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Validation states */}
-              {validationState === "validating" && (
-                <Alert className="bg-blue-50">
-                  <Spinner size="small" />
-                  <AlertTitle>Validating repository...</AlertTitle>
-                  <AlertDescription>
-                    Please wait while we check your GitHub repository.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {validationState === "error" && validationError && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Repository validation failed</AlertTitle>
-                  <AlertDescription>{validationError}</AlertDescription>
-                </Alert>
-              )}
-
-              {validationState === "validated" && checkCredits.data && (
-                <Alert className="border-green-200 bg-green-50">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <AlertTitle className="text-green-700">
-                    Repository validated successfully
-                  </AlertTitle>
-                  <AlertDescription className="text-green-600">
-                    {checkCredits.data.repoName} is ready to be indexed.
-                    {checkCredits.data.isPrivate && " (Private repository)"}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {validationState === "validated" && checkCredits.data && (
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertTitle>Credit Information</AlertTitle>
-                  <AlertDescription>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        Files to index:{" "}
-                        <strong>{checkCredits.data.fileCount}</strong>
-                      </p>
-                      <p>
-                        Your credits:{" "}
-                        <strong>{checkCredits.data.userCredits}</strong>
-                      </p>
-                      {!hasEnoughCredits && (
-                        <p className="text-red-500">
-                          You need{" "}
-                          {checkCredits.data.fileCount -
-                            checkCredits.data.userCredits}{" "}
-                          more credits.
-                        </p>
-                      )}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="flex justify-between gap-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push("/dashboard")}
-            disabled={createProject.isPending}
-          >
-            <X className="h-4 w-4" />
-            <span>Cancel</span>
-          </Button>
-
-          <div className="flex gap-2">
-            {!hasEnoughCredits && validationState === "validated" && (
-              <Link href="/billing">
-                <Button disabled={createProject.isPending}>
-                  <CreditCard className="h-4 w-4" />
-                  <span>Buy Credits</span>
-                </Button>
-              </Link>
-            )}
-
-            <Button
-              type="submit"
-              form="project-form"
-              disabled={
-                createProject.isPending ||
-                checkCredits.isPending ||
-                (validationState === "validated" && !hasEnoughCredits)
-              }
-            >
-              {validationState === "idle" || validationState === "error"
-                ? "Validate Repository"
-                : "Create Project"}
-              {(createProject.isPending || checkCredits.isPending) && (
-                <Spinner className="ml-2" size="small" />
-              )}
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
+      {/* Project Creation Card Component */}
+      <Form {...form}>
+        <ProjectCreationCard
+          form={form}
+          userId={user?.id}
+          onSuccess={(projectId) => {
+            refetch();
+            router.push(`/dashboard?newProject=${projectId}`);
+          }}
+        />
+      </Form>
     </div>
   );
 }

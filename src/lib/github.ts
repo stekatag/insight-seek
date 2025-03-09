@@ -4,6 +4,7 @@
 import { db } from "@/server/db";
 import axios from "axios";
 import { Octokit } from "octokit";
+
 import { aiSummarizeCommit } from "./gemini";
 
 /**
@@ -12,7 +13,7 @@ import { aiSummarizeCommit } from "./gemini";
  */
 export function createOctokit(userToken?: string) {
   // Use user-provided token if available, otherwise fall back to application token
-  const token = userToken || process.env.GITHUB_TOKEN;
+  const token = userToken;
   return new Octokit({ auth: token });
 }
 

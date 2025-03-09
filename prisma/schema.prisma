@@ -34,6 +34,7 @@ model Project {
     updatedAt DateTime  @updatedAt
     name      String
     githubUrl String
+    branch    String    
     deletedAt DateTime?
 
     userToProjects UserToProject[]
@@ -57,11 +58,14 @@ model UserToProject {
 }
 
 model UserGitHubToken {
-    id        String   @id @default(cuid())
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    userId    String   @unique
-    token     String
+    id             String   @id @default(cuid())
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+    userId         String   @unique
+    token          String
+    installationId String?
+    tokenExpiresAt DateTime?
+    username       String?
 
     user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

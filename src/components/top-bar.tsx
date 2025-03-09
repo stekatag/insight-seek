@@ -10,7 +10,7 @@ export default function TopBar() {
       <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar px-4 py-2 shadow">
         <SidebarTrigger />
         <SearchBar />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center">
           <UserDropdown
             className="p-0"
             variant="icon"
