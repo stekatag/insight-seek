@@ -1,6 +1,7 @@
 import {
   Bot,
   CreditCard,
+  FolderKanban,
   HelpCircle,
   Home,
   LayoutDashboard,
@@ -26,6 +27,11 @@ export const navMainItems: NavItem[] = [
     title: "Dashboard",
     url: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Projects",
+    url: "/projects",
+    icon: FolderKanban,
   },
   {
     title: "Q&A",

@@ -170,6 +170,19 @@ export default function ProjectCreationCard({
     form.getValues("branch") !== "" &&
     form.getValues("repoUrl") !== "";
 
+  // Get the correct button text based on validation state
+  const getButtonText = () => {
+    if (checkCredits.isPending) {
+      return "Validating Repository...";
+    }
+
+    if (validationState === "validated") {
+      return "Create Project";
+    }
+
+    return "Validate Repository";
+  };
+
   return (
     <>
       <Card>
@@ -377,9 +390,10 @@ export default function ProjectCreationCard({
             )}
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col sm:flex-row items-start sm:justify-between gap-2">
+        <CardFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
           <Button
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={() => (window.location.href = "/dashboard")}
             disabled={createProject.isPending}
           >
@@ -387,11 +401,11 @@ export default function ProjectCreationCard({
             <span>Cancel</span>
           </Button>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {!hasEnoughCredits && validationState === "validated" && (
-              <Link href="/billing">
-                <Button disabled={createProject.isPending}>
-                  <CreditCard className="h-4 w-4 " />
+              <Link href="/billing" className="w-full sm:w-auto">
+                <Button className="w-full" disabled={createProject.isPending}>
+                  <CreditCard className="h-4 w-4" />
                   <span>Buy Credits</span>
                 </Button>
               </Link>
@@ -400,6 +414,7 @@ export default function ProjectCreationCard({
             <Button
               type="submit"
               form="project-form"
+              className="w-full"
               disabled={
                 createProject.isPending ||
                 checkCredits.isPending ||
@@ -409,9 +424,7 @@ export default function ProjectCreationCard({
                 !formIsValid
               }
             >
-              {validationState === "idle" || validationState === "error"
-                ? "Validate Repository"
-                : "Create Project"}
+              <span>{getButtonText()}</span>
               {(createProject.isPending || checkCredits.isPending) && (
                 <Spinner className="ml-2 text-white" size="small" />
               )}

@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { FileQuestion, Folder, Plus, Presentation } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -6,8 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FileQuestion, Folder, Plus, Presentation } from "lucide-react";
-import Link from "next/link";
+
 import { ProjectSelector } from "./project-selector";
 
 type EmptyStateProps = {
@@ -67,11 +69,7 @@ export function NoProjectEmptyState({
         </p>
 
         <div className="mx-auto w-full max-w-sm">
-          <ProjectSelector
-            compact
-            showCard={false}
-            className="mx-auto max-w-xs"
-          />
+          <ProjectSelector />
         </div>
       </div>
     </div>

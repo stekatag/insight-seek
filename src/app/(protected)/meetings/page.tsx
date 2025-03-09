@@ -25,7 +25,9 @@ import {
   NoMeetingsEmptyState,
   NoProjectEmptyState,
 } from "@/components/empty-states";
+import GitBranchName from "@/components/git-branch-name";
 import MeetingCard from "@/components/meeting-card";
+import { ProjectSelector } from "@/components/project-selector";
 
 import DeleteMeetingButton from "./components/delete-meeting-button";
 
@@ -90,10 +92,14 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-6">
+      <ProjectSelector className="mb-4" />
       <MeetingCard />
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-semibold">Meetings</h2>
+        <h2 className="text-xl font-semibold">
+          Meetings for {project?.name}
+          <GitBranchName className="mt-2" />
+        </h2>
 
         {meetings && meetings.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

@@ -2,8 +2,8 @@
 
 import { Fragment, useState } from "react";
 import Image from "next/image";
-import { api } from "@/trpc/react";
 
+import { api } from "@/trpc/react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import useProject from "@/hooks/use-project";
 import {
@@ -23,6 +23,8 @@ import {
   NoProjectEmptyState,
   NoQuestionsEmptyState,
 } from "@/components/empty-states";
+import GitBranchName from "@/components/git-branch-name";
+import { ProjectSelector } from "@/components/project-selector";
 import { QuestionView } from "@/app/(protected)/qa/components/question-view";
 
 type FileReference = {
@@ -116,9 +118,13 @@ export default function QAPage() {
 
   return (
     <>
+      <ProjectSelector className="mb-4" />
       <AskQuestionCard />
 
-      <h2 className="mb-2 mt-4 text-xl font-semibold">Saved Questions</h2>
+      <h2 className="mb-2 mt-4 text-xl font-semibold">
+        Saved Questions for {project.name}
+      </h2>
+      <GitBranchName className="mb-4" />
 
       {questions?.length === 0 ? <NoQuestionsEmptyState /> : QuestionsList}
 

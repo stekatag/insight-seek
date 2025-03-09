@@ -1,113 +1,177 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import useProject from "@/hooks/use-project";
-import { Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Check, ChevronsUpDown, FolderKanban, Plus } from "lucide-react";
 
-interface ProjectSelectorProps {
-  title?: string;
-  description?: string;
-  compact?: boolean;
-  className?: string;
-  showCard?: boolean;
-}
+import { cn } from "@/lib/utils";
+import useProject from "@/hooks/use-project";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 
-export function ProjectSelector({
-  title = "Select a Project",
-  description = "Choose an existing project or create a new one",
-  compact = false,
-  className = "",
-  showCard = true,
-}: ProjectSelectorProps) {
+export function ProjectSelector({ className }: { className?: string }) {
+  const [open, setOpen] = useState(false);
   const { projects, projectId, setProjectId, isLoading } = useProject();
-  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredProjects, setFilteredProjects] = useState(projects || []);
 
-  // If still loading projects data
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-4">
-        <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  const hasProjects = projects && projects.length > 0;
-
-  const handleProjectChange = (value: string) => {
-    setProjectId(value);
-    router.push("/dashboard");
-  };
-
-  const ProjectSelectorContent = (
-    <div className={`space-y-4 ${className}`}>
-      {hasProjects && (
-        <div className={compact ? "space-y-2" : "space-y-4"}>
-          <div className={compact ? "" : "space-y-1.5"}>
-            {!compact && (
-              <h3 className="text-base font-medium">Your projects</h3>
-            )}
-            <Select value={projectId} onValueChange={handleProjectChange}>
-              <SelectTrigger className={compact ? "h-9" : ""}>
-                <SelectValue placeholder="Select a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center">
-            <div className="mb-2 flex-grow text-sm text-muted-foreground">
-              <span className={`${compact ? "uppercase tracking-widest" : ""}`}>
-                {compact ? "or" : "Or create a new project"}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Link href="/create" className="w-auto">
-        <Button>
-          <Plus className="h-4 w-4" />
-          {hasProjects ? "New Project" : "Create First Project"}
-        </Button>
-      </Link>
-    </div>
+  // Sort projects by creation date (newest first)
+  const sortedProjects = projects?.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
-  // If showCard is false, just return the selector content
-  if (!showCard) {
-    return ProjectSelectorContent;
-  }
+  // Get current project name
+  const currentProject = projects?.find((p) => p.id === projectId);
 
-  // Otherwise, wrap in a card
+  // Filter projects based on search query
+  useEffect(() => {
+    if (!sortedProjects) return;
+
+    if (!searchQuery.trim()) {
+      setFilteredProjects(sortedProjects);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = sortedProjects.filter(
+      (project) =>
+        project.name.toLowerCase().includes(query) ||
+        project.githubUrl.toLowerCase().includes(query) ||
+        project.branch.toLowerCase().includes(query),
+    );
+
+    setFilteredProjects(filtered);
+  }, [searchQuery, sortedProjects]);
+
+  // Determine button state
+  const showButton = !isLoading && sortedProjects && sortedProjects.length > 0;
+
+  // Handle input search change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>{ProjectSelectorContent}</CardContent>
-    </Card>
+    <div className={className}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "w-full justify-between text-left",
+              isLoading && "opacity-70",
+            )}
+            disabled={isLoading || !showButton}
+          >
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <Spinner size="small" />
+                <span>Loading projects...</span>
+              </div>
+            ) : currentProject ? (
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-xs text-primary">
+                  {currentProject.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="truncate">{currentProject.name}</span>
+              </div>
+            ) : (
+              "Select a project"
+            )}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] sm:w-[300px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search projects..."
+              value={searchQuery}
+              onValueChange={handleSearchChange}
+            />
+            <CommandList>
+              <CommandEmpty>
+                <div className="flex flex-col items-center justify-center py-6">
+                  <p className="text-sm text-muted-foreground">
+                    No projects found
+                  </p>
+                  <div className="mt-2">
+                    <Link href="/create">
+                      <Button size="sm" variant="outline">
+                        <Plus className="h-4 w-4" />
+                        <span>Create Project</span>
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CommandEmpty>
+
+              <CommandGroup heading="Projects">
+                {filteredProjects.map((project) => (
+                  <CommandItem
+                    key={project.id}
+                    value={project.id}
+                    onSelect={(currentValue) => {
+                      setProjectId(currentValue);
+                      setOpen(false);
+                      setSearchQuery(""); // Reset search when selecting
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-xs text-primary">
+                        {project.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate">{project.name}</span>
+                    </div>
+                    {project.id === projectId && (
+                      <Check className="ml-2 h-4 w-4 shrink-0" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+
+              <CommandSeparator />
+
+              <CommandGroup>
+                <CommandItem
+                  onSelect={() => {
+                    window.location.href = "/projects";
+                    setOpen(false);
+                  }}
+                >
+                  <FolderKanban className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">View All Projects</span>
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => {
+                    window.location.href = "/create";
+                    setOpen(false);
+                  }}
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">Create New Project</span>
+                </CommandItem>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

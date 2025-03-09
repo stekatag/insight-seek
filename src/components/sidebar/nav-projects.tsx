@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
@@ -25,9 +25,19 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
   const { open } = useSidebar();
   const { projects, projectId, setProjectId, isLoading } = useProject();
 
+  // Sort projects by creation date (newest first) and take only the first 5
+  const recentProjects = projects
+    ?.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .slice(0, 5);
+
+  const hasMoreProjects = (projects?.length || 0) > 5;
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Your Projects</SidebarGroupLabel>
+      <SidebarGroupLabel>Recent Projects</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {isLoading ? (
@@ -50,8 +60,8 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
           ) : (
             // Actual projects list
             <>
-              {projects?.map((project) => (
-                <SidebarMenuItem key={project.name}>
+              {recentProjects?.map((project) => (
+                <SidebarMenuItem key={project.id}>
                   <SidebarMenuButton
                     size={open ? "default" : "lg"}
                     className={`${!open ? "!p-0 flex justify-center" : ""}`}
@@ -72,20 +82,35 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                       >
                         {project.name.charAt(0)}
                       </div>
-                      {open && <span>{project.name}</span>}
+                      {open && <span className="truncate">{project.name}</span>}
                     </div>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
               {open && (
-                <SidebarMenuItem className="mt-2">
-                  <Link href="/create" onClick={handleNavigation}>
-                    <Button size="sm" variant="outline" className="w-fit">
-                      <Plus />
-                      <span>Create Project</span>
-                    </Button>
-                  </Link>
-                </SidebarMenuItem>
+                <>
+                  {hasMoreProjects && (
+                    <SidebarMenuItem>
+                      <Link
+                        href="/projects"
+                        onClick={handleNavigation}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
+                      >
+                        <FolderKanban className="h-4 w-4" />
+                        <span>View All Projects</span>
+                      </Link>
+                    </SidebarMenuItem>
+                  )}
+                  <SidebarMenuItem className="mt-2">
+                    <Link href="/create" onClick={handleNavigation}>
+                      <Button size="sm" variant="outline" className="w-fit">
+                        <Plus className="h-4 w-4" />
+                        <span>Create Project</span>
+                      </Button>
+                    </Link>
+                  </SidebarMenuItem>
+                </>
               )}
             </>
           )}

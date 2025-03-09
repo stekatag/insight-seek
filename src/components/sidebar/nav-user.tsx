@@ -16,7 +16,7 @@ interface NavUserProps {
 
 export default function NavUser({ handleNavigation }: NavUserProps) {
   // Get sidebar open state to determine if it's collapsed
-  const { open } = useSidebar();
+  const { open, isMobile } = useSidebar();
 
   return (
     <SidebarGroup className="mt-auto">
@@ -27,7 +27,7 @@ export default function NavUser({ handleNavigation }: NavUserProps) {
             <UserDropdown
               variant="full"
               onNavigate={handleNavigation}
-              side="right"
+              side={isMobile ? "top" : "right"}
               isCollapsed={!open}
             />
           </SidebarMenuItem>

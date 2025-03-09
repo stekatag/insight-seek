@@ -52,12 +52,7 @@ export default function OnboardingView() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Left column - Project selection and quick actions */}
         <div className="space-y-6 md:col-span-2">
-          {hasProjects && (
-            <ProjectSelector
-              title="Select a Project"
-              description="Continue working on an existing project or create a new one"
-            />
-          )}
+          {hasProjects && <ProjectSelector />}
 
           <Card>
             <CardHeader>
@@ -153,7 +148,7 @@ export default function OnboardingView() {
 
               {hasProjects ? (
                 <div className="w-full max-w-xs">
-                  <ProjectSelector compact showCard={false} />
+                  <ProjectSelector />
                 </div>
               ) : (
                 <Link href="/create">

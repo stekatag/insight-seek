@@ -266,10 +266,12 @@ export default function GitHubConnectionStatus() {
                       variant="outline"
                       size="sm"
                       className="border-green-300 text-green-700"
-                      onClick={() => router.push("/api/github/install")}
+                      onClick={() =>
+                        window.open("/api/github/install", "_blank")
+                      }
                     >
                       <Settings className=" h-3.5 w-3.5" />
-                      Configure
+                      <span>Configure</span>
                     </Button>
                   </div>
                 </AlertDescription>
@@ -293,29 +295,31 @@ export default function GitHubConnectionStatus() {
                       </p>
                     )}
                   </div>
-                  <div className="flex  items-center gap-2">
+                  <div className="flex sm:flex-row flex-col items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-green-300 text-green-700"
+                      className="border-green-300 text-green-700 w-full sm:w-auto"
                       onClick={verifyToken}
                       disabled={isVerifying || verifyTokenQuery.isPending}
                     >
                       {isVerifying || verifyTokenQuery.isPending ? (
-                        <Spinner size="small" />
+                        <Spinner size="small" className="text-green-700" />
                       ) : (
                         <RefreshCw className="h-3.5 w-3.5" />
                       )}
-                      Verify
+                      <span>Verify</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-green-300 text-green-700"
-                      onClick={() => router.push("/api/github/install")}
+                      className="border-green-300 text-green-700 w-full sm:w-auto"
+                      onClick={() =>
+                        window.open("/api/github/install", "_blank")
+                      }
                     >
                       <Settings className="h-3.5 w-3.5" />
-                      Configure
+                      <span>Configure</span>
                     </Button>
                   </div>
                 </AlertDescription>
@@ -328,8 +332,9 @@ export default function GitHubConnectionStatus() {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>GitHub Not Connected</AlertTitle>
                 <AlertDescription>
-                  Install our GitHub App to access private repositories and
-                  enable advanced features.
+                  Link your GitHub account to access public and private
+                  repositories, unlocking advanced features. Only one GitHub
+                  account can be connected to InsightSeek.
                 </AlertDescription>
               </Alert>
               <Button

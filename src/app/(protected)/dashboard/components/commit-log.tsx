@@ -84,7 +84,7 @@ export default function CommitLog() {
                 <Link
                   target="_blank"
                   className="mb-2 flex flex-col gap-1 py-0.5 text-xs leading-5 text-gray-500 sm:mb-0 sm:flex-row sm:gap-2"
-                  href={`${project?.githubUrl}/commits/${commit.commitHash}`}
+                  href={`${project?.githubUrl}/commit/${commit.commitHash}`}
                   title={commit.commitAuthorName}
                 >
                   <span className="font-medium text-gray-900">
