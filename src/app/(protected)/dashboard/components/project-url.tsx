@@ -1,8 +1,9 @@
-import { formatTechnicalText } from "@/lib/utils";
+import Link from "next/link";
 import { Project } from "@prisma/client";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { ExternalLink } from "lucide-react";
-import Link from "next/link";
+
+import { formatTechnicalText } from "@/lib/utils";
 
 // Add this function to your dashboard page component
 function formatProjectUrl(url: string | null | undefined): React.ReactNode {
@@ -33,7 +34,7 @@ export default function ProjectUrl({ project }: { project: Project }) {
     <div className="mt-1 flex flex-wrap items-center gap-2 gap-y-1 text-sm text-muted-foreground">
       <Link
         href={project.githubUrl ?? ""}
-        className="flex flex-col gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 sm:flex-row sm:items-center"
+        className="flex flex-col gap-2 rounded-md border border-primary/30  dark:border-primary/70 bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 sm:flex-row sm:items-center"
         target="_blank"
         title={project.githubUrl}
       >

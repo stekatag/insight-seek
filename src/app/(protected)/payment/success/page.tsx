@@ -74,7 +74,7 @@ function PaymentSuccessContent() {
 // Main page component with Suspense
 export default function PaymentSuccessPage() {
   return (
-    <div className="container mx-auto flex max-w-lg flex-col items-center justify-center py-16">
+    <div className="container flex max-w-lg flex-col items-center justify-center py-16">
       <Suspense
         fallback={
           <Card className="w-full">

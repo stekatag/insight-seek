@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="container mx-auto flex h-screen flex-col items-center justify-center gap-4 text-center p-4">
+    <div className="container flex h-screen flex-col items-center justify-center gap-4 text-center p-4">
       <div className="rounded-full bg-muted p-6">
         <Search className="h-8 w-8 text-muted-foreground" />
       </div>

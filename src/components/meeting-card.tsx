@@ -225,9 +225,8 @@ export default function MeetingCard() {
     <>
       <Card
         className={cn(
-          "col-span-2 h-full overflow-hidden transition-all duration-200",
+          "col-span-2 h-full overflow-hidden transition-all duration-200 border-primary/35 border-dashed border-2",
           isDragActive && "border-primary ring-2 ring-primary ring-opacity-50",
-          !project && "border-dashed",
         )}
       >
         <div
@@ -243,7 +242,7 @@ export default function MeetingCard() {
               </div>
 
               <CardTitle className="mb-2 text-lg font-semibold">
-                Create a new meeting
+                Upload a new meeting
               </CardTitle>
 
               <CardDescription className="mb-6 max-w-xs">
@@ -259,7 +258,7 @@ export default function MeetingCard() {
                   open();
                 }}
               >
-                <Upload className="mr-2 h-4 w-4" />
+                <Upload className="h-4 w-4" />
                 <span>Upload Meeting</span>
               </Button>
 

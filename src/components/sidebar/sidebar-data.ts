@@ -58,8 +58,8 @@ export const navLinkItems: NavLinkItem[] = [
     icon: Home,
   },
   {
-    title: "Help",
-    url: "/support",
+    title: "Contact",
+    url: "/#contact",
     icon: HelpCircle,
   },
 ];

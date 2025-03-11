@@ -244,12 +244,10 @@ export default function GitHubConnectionStatus() {
               </Alert>
             ) : verificationSuccess ? (
               // Successful verification state - shows temporarily after manual verification
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-green-700">
-                  GitHub Connection Verified
-                </AlertTitle>
-                <AlertDescription className="flex items-center justify-between text-green-600">
+              <Alert variant="success">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>GitHub Connection Verified</AlertTitle>
+                <AlertDescription className="flex items-center justify-between">
                   <div>
                     <span>
                       Connection is active and working properly.
@@ -263,9 +261,8 @@ export default function GitHubConnectionStatus() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant="success-outline"
                       size="sm"
-                      className="border-green-300 text-green-700"
                       onClick={() =>
                         window.open("/api/github/install", "_blank")
                       }
@@ -278,12 +275,10 @@ export default function GitHubConnectionStatus() {
               </Alert>
             ) : (
               // Standard connected state
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-green-700">
-                  GitHub Connected
-                </AlertTitle>
-                <AlertDescription className="flex flex-col gap-2 sm:gap-1 sm:flex-row sm:items-center justify-between text-green-600">
+              <Alert variant="success">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>GitHub Connected</AlertTitle>
+                <AlertDescription className="flex flex-col gap-2 sm:gap-1 sm:flex-row sm:items-center justify-between">
                   <div>
                     <span>
                       GitHub App is installed. You can access private
@@ -297,23 +292,23 @@ export default function GitHubConnectionStatus() {
                   </div>
                   <div className="flex sm:flex-row flex-col items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant="success-outline"
                       size="sm"
-                      className="border-green-300 text-green-700 w-full sm:w-auto"
+                      className="w-full sm:w-auto"
                       onClick={verifyToken}
                       disabled={isVerifying || verifyTokenQuery.isPending}
                     >
                       {isVerifying || verifyTokenQuery.isPending ? (
-                        <Spinner size="small" className="text-green-700" />
+                        <Spinner size="small" />
                       ) : (
                         <RefreshCw className="h-3.5 w-3.5" />
                       )}
                       <span>Verify</span>
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="success-outline"
                       size="sm"
-                      className="border-green-300 text-green-700 w-full sm:w-auto"
+                      className="w-full sm:w-auto"
                       onClick={() =>
                         window.open("/api/github/install", "_blank")
                       }

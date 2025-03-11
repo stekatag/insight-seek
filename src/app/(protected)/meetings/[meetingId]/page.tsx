@@ -36,7 +36,7 @@ export default function MeetingDetailPage() {
   // Handle error state
   if (error || !meeting) {
     return (
-      <div className="container mx-auto max-w-6xl space-y-4 p-4">
+      <div className="container max-w-6xl space-y-4 p-4">
         <Link href="/meetings">
           <Button variant="outline" className="mb-4">
             <ArrowLeft className="h-4 w-4" /> Back to Meetings
@@ -58,7 +58,7 @@ export default function MeetingDetailPage() {
   // Handle processing state - redirect or show processing message
   if (meeting.status === "PROCESSING") {
     return (
-      <div className="container mx-auto max-w-6xl space-y-4 p-4">
+      <div className="container max-w-6xl space-y-4 p-4">
         <Link href="/meetings">
           <Button variant="outline" className="mb-4">
             <ArrowLeft className="h-4 w-4" /> Back to Meetings
@@ -109,7 +109,7 @@ export default function MeetingDetailPage() {
   // Render actual meeting content
   return (
     <div className="flex h-full flex-col">
-      <div className="container mx-auto max-w-full pb-4 sm:p-4">
+      <div className="container max-w-full pb-4 sm:p-4">
         <Link href="/meetings">
           <Button variant="outline" className="mb-4">
             <ArrowLeft className="h-4 w-4" /> Back to Meetings

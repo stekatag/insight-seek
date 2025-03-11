@@ -1,21 +1,6 @@
 "use client";
 
-import { askQuestion } from "@/app/(protected)/dashboard/actions";
-import AnswerDisplay from "@/app/(protected)/dashboard/components/answer-display";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import useProject from "@/hooks/use-project";
-import useRefetch from "@/hooks/use-refetch";
-import { cn } from "@/lib/utils";
-import { api } from "@/trpc/react";
+import { FormEvent, useState } from "react";
 import { readStreamableValue } from "ai/rsc";
 import {
   Bot,
@@ -26,8 +11,24 @@ import {
   Sparkles,
   Undo,
 } from "lucide-react";
-import { FormEvent, useState } from "react";
 import { toast } from "sonner";
+
+import { api } from "@/trpc/react";
+import { cn } from "@/lib/utils";
+import useProject from "@/hooks/use-project";
+import useRefetch from "@/hooks/use-refetch";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { askQuestion } from "@/app/(protected)/dashboard/actions";
+import AnswerDisplay from "@/app/(protected)/dashboard/components/answer-display";
 
 // Predefined questions with icons remain unchanged
 const predefinedQuestions = [
@@ -145,7 +146,7 @@ export default function AskQuestionCard() {
       />
 
       {/* Question Card with Enhanced UI */}
-      <Card className="relative col-span-1 sm:col-span-3">
+      <Card className="relative col-span-1 sm:col-span-3 dark:border-secondary">
         <CardHeader className="pb-3">
           <div className="flex flex-col items-start gap-3 sm:flex-row">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">

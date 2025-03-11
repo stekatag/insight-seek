@@ -205,7 +205,7 @@ function processCodeAndPaths(line: string, lineIndex: number): React.ReactNode {
       parts.push(
         <code
           key={key}
-          className="break-all rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-800"
+          className="break-all rounded bg-secondary px-1 py-0.5 font-mono text-xs text-secondary-foreground"
         >
           {formatTechnicalText(code)}
         </code>,
@@ -226,7 +226,7 @@ function processCodeAndPaths(line: string, lineIndex: number): React.ReactNode {
             parts.push(
               <code
                 key={pathKey}
-                className="mx-0.5 break-all rounded-sm bg-gray-50 px-0.5 py-0 font-mono text-xs text-gray-600"
+                className="mx-0.5 break-all rounded-sm bg-secondary px-0.5 py-0 font-mono text-xs text-secondary-foreground"
               >
                 {formatTechnicalText(pathPart)}
               </code>,

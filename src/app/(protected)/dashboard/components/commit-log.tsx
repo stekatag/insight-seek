@@ -11,7 +11,6 @@ import {
   cn,
   formatCodeFragments,
   formatTechnicalText,
-  truncateText,
   TRUNCATION_LIMITS,
 } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
@@ -68,7 +67,7 @@ export default function CommitLog() {
                 "absolute left-0 top-0 flex w-6 justify-center",
               )}
             >
-              <div className="w-px translate-x-1 bg-gray-200" />
+              <div className="w-px translate-x-1 bg-secondary" />
             </div>
 
             <Image
@@ -79,17 +78,15 @@ export default function CommitLog() {
               className="relative mt-3 h-8 w-8 flex-none rounded-full bg-gray-50"
             />
 
-            <div className="flex-auto rounded-md bg-white p-3 ring-1 ring-inset ring-gray-200">
+            <div className="flex-auto rounded-md bg-card p-3 ring-1 ring-inset ring-secondary">
               <div className="flex justify-between gap-x-4">
                 <Link
                   target="_blank"
-                  className="mb-2 flex flex-col gap-1 py-0.5 text-xs leading-5 text-gray-500 sm:mb-0 sm:flex-row sm:gap-2"
+                  className="mb-2 flex flex-col gap-1 py-0.5 text-xs leading-5 dark:text-secondary-foreground/50 text-secondary-foreground/70  sm:mb-0 sm:flex-row sm:gap-2"
                   href={`${project?.githubUrl}/commit/${commit.commitHash}`}
                   title={commit.commitAuthorName}
                 >
-                  <span className="font-medium text-gray-900">
-                    {commit.commitAuthorName}
-                  </span>
+                  <span className="font-medium">{commit.commitAuthorName}</span>
                   <span className="inline-flex items-center">
                     committed
                     <ExternalLink className="ml-1 h-4 w-4" />
@@ -97,7 +94,7 @@ export default function CommitLog() {
                 </Link>
                 <time
                   dateTime={commit.commitDate.toString()}
-                  className="flex-none py-0.5 text-xs leading-5 text-gray-500"
+                  className="flex-none py-0.5 text-xs leading-5 text-muted-foreground"
                 >
                   {formatDistanceToNow(commit.commitDate, {
                     addSuffix: true,
@@ -113,17 +110,17 @@ export default function CommitLog() {
                   TRUNCATION_LIMITS.COMMIT_MESSAGE,
                 )}
               </span>
-              <span className="mb-1 flex items-center gap-1 text-xs text-primary/80">
+              <span className="mb-1 flex items-center gap-1 text-xs text-primary/80 dark:text-primary">
                 <Sparkles className="size-4" /> AI Commit Summary
               </span>
 
               {commit.summary === "Analyzing commit..." ? (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Spinner size="small" />
                   <span>Generating summary...</span>
                 </div>
               ) : (
-                <div className="break-words text-sm leading-6 text-gray-600">
+                <div className="break-words text-sm leading-6 text-secondary-foreground/70 dark:text-secondary-foreground/50">
                   {formatCodeFragments(commit.summary || "Summary unavailable")}
                 </div>
               )}
