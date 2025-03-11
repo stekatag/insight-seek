@@ -9,6 +9,7 @@ import { TRPCReactProvider } from "@/trpc/react";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || ""),
   title: {
     default: "InsightSeek | AI-powered Code & Meeting Analysis",
     template: "%s | InsightSeek",
