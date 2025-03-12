@@ -5,6 +5,7 @@ import { Octokit } from "octokit";
 
 import { generateEmbedding, summarizeCode } from "./gemini";
 
+// Modified getFileCount function to more accurately match what loadGithubRepo will process
 const getFileCount = async (
   path: string,
   octokit: Octokit,
@@ -21,43 +22,70 @@ const getFileCount = async (
       ref: branch,
     });
 
+    // Handle single file case
     if (!Array.isArray(data) && data.type === "file") {
-      return acc + 1;
+      // Apply the same filtering that loadGithubRepo would apply
+      if (shouldProcessFile(data.name, path)) {
+        return acc + 1;
+      }
+      return acc;
     }
 
     if (Array.isArray(data)) {
       let fileCount = 0;
-
-      // Limit the number of directories we process to avoid rate limits
       const directories: string[] = [];
 
-      // Count files and collect directories in current level
+      // First pass: count files at this level
       for (const item of data) {
         if (item.type === "dir") {
-          // Skip node_modules and similar directories
+          // Skip directories that we know we won't process
           if (!shouldSkipDirectory(item.path)) {
             directories.push(item.path);
           }
-        } else {
-          fileCount += 1;
+        } else if (item.type === "file") {
+          // Only count files that would actually be processed
+          if (shouldProcessFile(item.name, item.path)) {
+            fileCount += 1;
+          }
         }
       }
 
-      // Limit the number of directories we'll process to avoid hitting rate limits
+      // Process directories with rate limit protections
       const MAX_DIRS_TO_PROCESS = 20;
-      const dirsToProcess = directories.slice(0, MAX_DIRS_TO_PROCESS);
 
+      // For large repos, prioritize directories more likely to contain source code
+      const sortedDirectories = [...directories];
       if (directories.length > MAX_DIRS_TO_PROCESS) {
-        console.log(
-          `Limiting directory scan to ${MAX_DIRS_TO_PROCESS} directories out of ${directories.length}`,
-        );
-        // Add an estimate for skipped directories
-        fileCount += (directories.length - MAX_DIRS_TO_PROCESS) * 5; // Assume 5 files per directory
+        // Sort directories to prioritize src, lib, app folders which likely contain more source files
+        const priorityDirs = [
+          "src/",
+          "lib/",
+          "app/",
+          "core/",
+          "main/",
+          "source/",
+          "components/",
+        ];
+        sortedDirectories.sort((a, b) => {
+          const aPriority = priorityDirs.some((dir) => a.includes(dir)) ? 0 : 1;
+          const bPriority = priorityDirs.some((dir) => b.includes(dir)) ? 0 : 1;
+          return aPriority - bPriority;
+        });
       }
 
-      // Process directories in sequence to reduce concurrent requests
+      const dirsToProcess = sortedDirectories.slice(0, MAX_DIRS_TO_PROCESS);
+
+      // If we're limiting directories, make a more accurate estimate based on what we've seen so far
+      if (directories.length > MAX_DIRS_TO_PROCESS) {
+        const remainingDirCount = directories.length - MAX_DIRS_TO_PROCESS;
+        console.log(
+          `Repository has ${directories.length} dirs; scanning ${MAX_DIRS_TO_PROCESS} and estimating the rest`,
+        );
+      }
+
+      // Process directories we're keeping
       for (const dirPath of dirsToProcess) {
-        // Add a small delay to avoid rate limiting
+        // Add small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 100));
         const dirCount = await getFileCount(
           dirPath,
@@ -70,6 +98,25 @@ const getFileCount = async (
         fileCount += dirCount;
       }
 
+      // For unscanned directories, estimate based on what we've seen so far
+      if (directories.length > MAX_DIRS_TO_PROCESS) {
+        // Calculate average files per directory from the ones we scanned
+        const scannedDirCount = dirsToProcess.length;
+        const averageFilesPerDir =
+          scannedDirCount > 0 ? fileCount / scannedDirCount : 2;
+
+        // Apply this average to remaining directories (with a small discount factor)
+        const remainingDirs = directories.length - MAX_DIRS_TO_PROCESS;
+        const estimatedAdditionalFiles = Math.ceil(
+          averageFilesPerDir * remainingDirs * 0.8,
+        );
+
+        console.log(
+          `Estimated additional ${estimatedAdditionalFiles} files in ${remainingDirs} unscanned directories`,
+        );
+        fileCount += estimatedAdditionalFiles;
+      }
+
       return acc + fileCount;
     }
 
@@ -77,13 +124,14 @@ const getFileCount = async (
   } catch (error: any) {
     console.error(`Error counting files for path ${path}:`, error);
 
-    // If we hit rate limits, make a reasonable estimate
+    // Better rate limit handling
     if (
       error.status === 403 &&
       error.message?.includes("API rate limit exceeded")
     ) {
       console.warn("Rate limit exceeded during file count, using estimate");
-      return acc + 5; // Assume approximately 5 files per directory when rate limited
+      // Return a slightly higher estimate since we hit a rate limit
+      return acc + 10;
     }
 
     // Skip this path if there's an error
@@ -108,6 +156,64 @@ function shouldSkipDirectory(path: string): boolean {
   return skipDirs.some((dir) => path.includes(dir));
 }
 
+// Helper function to determine if we should process a file
+// This should match the same logic used in loadGithubRepo
+function shouldProcessFile(fileName: string, path: string): boolean {
+  // Skip files we know GithubRepoLoader would ignore
+  if (
+    fileName === "package-lock.json" ||
+    fileName === "yarn.lock" ||
+    fileName === "pnpm-lock.yaml" ||
+    fileName === "bun.lockb" ||
+    fileName.endsWith(".min.js") ||
+    fileName.endsWith(".min.css")
+  ) {
+    return false;
+  }
+
+  // Skip if in directories that GithubRepoLoader ignores
+  if (
+    path.includes("node_modules/") ||
+    path.includes("dist/") ||
+    path.includes("build/") ||
+    path.includes(".next/")
+  ) {
+    return false;
+  }
+
+  // Skip binary files and non-source code files that tend to be large
+  const binaryExtensions = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".ico",
+    ".bmp",
+    ".pdf",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".7z",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".mp3",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".wav",
+  ];
+
+  for (const ext of binaryExtensions) {
+    if (fileName.toLowerCase().endsWith(ext)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export const checkCredits = async (
   githubUrl: string,
   branch: string,
@@ -118,8 +224,10 @@ export const checkCredits = async (
       auth: githubToken,
     });
 
-    const githubOwner = githubUrl.split("/")[3];
-    const githubRepo = githubUrl.split("/")[4];
+    // Parse the GitHub URL to get owner and repo
+    const urlParts = githubUrl.split("/");
+    const githubOwner = urlParts[3];
+    const githubRepo = urlParts[4]?.replace(".git", "");
 
     if (!githubOwner || !githubRepo) return 0;
 
@@ -130,15 +238,16 @@ export const checkCredits = async (
         `Rate limit remaining: ${rateLimit.resources.core.remaining}/${rateLimit.resources.core.limit}`,
       );
 
-      if (rateLimit.resources.core.remaining < 10) {
-        console.warn("GitHub API rate limit almost exhausted!");
-        // Continue anyway, but at reduced detail level
+      if (rateLimit.resources.core.remaining < 20) {
+        console.warn("GitHub API rate limit low! File count may be estimated.");
       }
     } catch (rateLimitError) {
       console.error("Failed to check rate limits:", rateLimitError);
-      // Continue with the operation
     }
 
+    // The most accurate method is to just use our manual counting function
+    // which uses the same filtering logic as the actual processing
+    console.log(`Counting files for ${githubUrl} on branch ${branch}`);
     const fileCount = await getFileCount(
       "",
       octokit,
@@ -148,10 +257,10 @@ export const checkCredits = async (
       0,
     );
 
+    console.log(`Found ${fileCount} processable files in the repository`);
     return fileCount;
   } catch (error) {
     console.error("Error checking credits:", error);
-    // Return a reasonable default if we hit rate limits
     return 100; // Default estimate if we can't get actual count
   }
 };

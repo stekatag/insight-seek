@@ -7,9 +7,15 @@ const model = genAI.getGenerativeModel({
   model: "gemini-2.0-flash",
 });
 
-export const aiSummarizeCommit = async (diff: string) => {
-  const response = await model.generateContent([
-    `You are an expert programmer, and you are trying to summarize a git diff.
+export async function aiSummarizeCommit(diffData: string): Promise<string> {
+  // If diff is too large, truncate it to avoid token limits
+  const truncatedDiff =
+    diffData.length > 20000
+      ? diffData.substring(0, 20000) + "... [diff truncated for length]"
+      : diffData;
+
+  try {
+    const prompt = `You are an expert programmer, and you are trying to summarize a git diff.
 Reminders about the git diff format:
 For every file, there are a few metadata lines, like (for example):
 \`\`\`
@@ -37,12 +43,20 @@ Most commits will have less comments than this examples list.
 The last comment does not include the file names,
 because there were more than two relevant files in the hypothetical commit.
 Do not include parts of the example in your summary.
-It is given only as an example of appropriate comments.`,
-    `Please summarise the following diff file: \n\n${diff}`,
-  ]);
+It is given only as an example of appropriate comments.
+\`\`\`
+Please summarise the following diff file: \n\n${truncatedDiff}`;
 
-  return response.response.text();
-};
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    return text.trim();
+  } catch (error) {
+    console.error("Error summarizing commit with AI:", error);
+    return "Error generating summary";
+  }
+}
 
 export async function summarizeCode(doc: Document) {
   console.log("getting summary for", doc.metadata.source);

@@ -149,9 +149,7 @@ export async function pullCommits(projectId: string) {
       return { added: 0, total: existingCommits.length };
     }
 
-    // Insert commits with a placeholder summary
-    const placeholderSummary = "Analyzing commit...";
-
+    // Insert commits with a placeholder summary immediately
     await db.commit.createMany({
       data: newCommits.map((commit) => ({
         projectId,
@@ -160,18 +158,29 @@ export async function pullCommits(projectId: string) {
         commitDate: new Date(commit.commitDate),
         commitMessage: commit.commitMessage,
         commitAuthorAvatar: commit.commitAuthorAvatar,
-        summary: placeholderSummary, // Use a placeholder initially
+        summary: "Loading commit summary...", // Better placeholder message
       })),
       skipDuplicates: true,
     });
 
-    // Process summaries asynchronously
-    processSummariesAsync(
-      project.githubUrl,
-      projectId,
-      newCommits,
-      githubToken,
-    ).catch((err) => console.error("Error processing summaries:", err));
+    // Process summaries in parallel
+    // Break commits into batches of 5 to avoid overwhelming the API
+    const batchSize = 5;
+    const commitBatches = [];
+
+    for (let i = 0; i < newCommits.length; i += batchSize) {
+      commitBatches.push(newCommits.slice(i, i + batchSize));
+    }
+
+    // Start processing all batches immediately without awaiting
+    for (const batch of commitBatches) {
+      void processCommitBatch(
+        project.githubUrl,
+        projectId,
+        batch,
+        githubToken,
+      ).catch((err) => console.error("Error processing commit batch:", err));
+    }
 
     return {
       added: newCommits.length,
@@ -184,43 +193,44 @@ export async function pullCommits(projectId: string) {
 }
 
 /**
- * Processes commit summaries asynchronously
+ * Process a batch of commits in parallel
  */
-async function processSummariesAsync(
+async function processCommitBatch(
   githubUrl: string,
   projectId: string,
   commits: CommitData[],
   githubToken?: string,
 ) {
-  for (const commit of commits) {
-    try {
-      // Generate summary
-      const summary = await summarizeCommit(
-        githubUrl,
-        commit.commitHash,
-        githubToken,
-      );
+  // Process all commits in the batch concurrently
+  await Promise.all(
+    commits.map(async (commit) => {
+      try {
+        // Generate summary
+        const summary = await summarizeCommit(
+          githubUrl,
+          commit.commitHash,
+          githubToken,
+        );
 
-      // Update the commit with the real summary
-      await db.commit.updateMany({
-        where: { projectId, commitHash: commit.commitHash },
-        data: { summary },
-      });
+        // Update the commit with the real summary
+        await db.commit.updateMany({
+          where: { projectId, commitHash: commit.commitHash },
+          data: { summary },
+        });
+      } catch (err) {
+        console.error(
+          `Failed to process summary for commit ${commit.commitHash}:`,
+          err,
+        );
 
-      console.log(`Processed summary for commit ${commit.commitHash}`);
-    } catch (err) {
-      console.error(
-        `Failed to process summary for commit ${commit.commitHash}:`,
-        err,
-      );
-
-      // Update with error message if summarization fails
-      await db.commit.updateMany({
-        where: { projectId, commitHash: commit.commitHash },
-        data: { summary: "Failed to generate summary" },
-      });
-    }
-  }
+        // Update with error message if summarization fails
+        await db.commit.updateMany({
+          where: { projectId, commitHash: commit.commitHash },
+          data: { summary: "Failed to generate summary" },
+        });
+      }
+    }),
+  );
 }
 
 /**

@@ -1,12 +1,22 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { readStreamableValue } from "ai/rsc";
 import { ExternalLink, FolderKanban, Settings } from "lucide-react";
 import { toast } from "sonner";
 
+import { api } from "@/trpc/react";
 import useProject from "@/hooks/use-project";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -19,21 +29,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import AskQuestionCard from "@/components/ask-question-card";
+import AskQuestionCard from "@/components/chat/ask-question-card";
+import ChatDialog from "@/components/chat/chat-dialog";
+import { chatReducer, initialChatState } from "@/components/chat/chat-reducer";
 import GitBranchName from "@/components/git-branch-name";
 import MeetingCard from "@/components/meeting-card";
 import { ProjectSelector } from "@/components/project-selector";
 
+import { askQuestion } from "./actions";
 import CommitLog from "./components/commit-log";
 import DeleteProjectButton from "./components/delete-project-button";
 import OnboardingView from "./components/onboarding-view";
 import ProjectUrl from "./components/project-url";
 
-// Component that uses useSearchParams - must be wrapped in Suspense
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { project, projectId, isLoading: projectLoading } = useProject();
+  const hasProject = !!project;
   const newProjectId = searchParams.get("newProject");
+
   const [indexingProject, setIndexingProject] = useState<string | null>(
     newProjectId,
   );
@@ -42,6 +57,27 @@ function DashboardContent() {
     embeddingsCount: number;
     isFullyIndexed: boolean;
   } | null>(null);
+
+  // Simplify state by using a reducer like in AskQuestionCard
+  const [chatState, chatDispatch] = useReducer(chatReducer, initialChatState);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Get utils at component level
+  const apiUtils = api.useUtils();
+
+  // Fetch chats for the current project
+  const { data: chats, isLoading } = api.qa.getChats.useQuery(
+    { projectId },
+    {
+      enabled: hasProject,
+      staleTime: 0,
+    },
+  );
+
+  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
+  const [activeChatIndex, setActiveChatIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const activeChat = chats?.[activeChatIndex];
 
   // Fetch indexing status if we have a new project
   useEffect(() => {
@@ -92,11 +128,113 @@ function DashboardContent() {
     return () => clearInterval(interval);
   }, [indexingProject, router]);
 
-  const { project, isLoading } = useProject();
-  const hasProject = !!project;
+  // Check for chat in URL
+  useEffect(() => {
+    if (!chats || chats.length === 0 || isLoading) return;
+
+    const chatId = searchParams.get("chat");
+    if (!chatId) return;
+
+    // Find the chat with the matching ID
+    const chatIndex = chats.findIndex((chat) => chat.id === chatId);
+    if (chatIndex !== -1) {
+      setActiveChatIndex(chatIndex);
+      setIsOpen(true);
+      // Reset streaming states
+      chatDispatch({ type: "SET_STREAM_CONTENT", payload: "" });
+      chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
+    }
+  }, [chats, isLoading, searchParams]);
+
+  // Handle follow-up question change
+  const handleFollowUpChange = useCallback((value: string) => {
+    chatDispatch({ type: "SET_FOLLOW_UP", payload: value });
+  }, []);
+
+  // Handle follow-up question submission
+  const handleFollowUpSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+
+      const { followUpQuestion, isStreaming } = chatState;
+
+      if (
+        !followUpQuestion.trim() ||
+        isStreaming ||
+        !activeChat ||
+        !project?.id
+      )
+        return;
+
+      // Set streaming state immediately
+      chatDispatch({ type: "START_FOLLOW_UP_STREAMING" });
+
+      try {
+        // Get answer from AI
+        const { output, filesReferences } = await askQuestion(
+          followUpQuestion,
+          project.id,
+        );
+
+        // Stream the answer in real-time
+        let fullAnswer = "";
+        for await (const delta of readStreamableValue(output)) {
+          if (delta) {
+            fullAnswer += delta;
+            chatDispatch({ type: "SET_STREAM_CONTENT", payload: fullAnswer });
+          }
+        }
+
+        // Save the follow-up question to the chat
+        await addFollowupQuestion.mutateAsync({
+          chatId: activeChat.id,
+          question: followUpQuestion,
+          answer: fullAnswer,
+          filesReferences,
+        });
+
+        // Reset states
+        chatDispatch({ type: "STOP_STREAMING" });
+        chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
+
+        // Refresh the chats data
+        await apiUtils.qa.getChats.invalidate({ projectId });
+      } catch (error) {
+        console.error("Failed to process follow-up:", error);
+        toast.error("Failed to get answer to follow-up question");
+        chatDispatch({ type: "STOP_STREAMING" });
+      }
+    },
+    [
+      chatState,
+      project?.id,
+      activeChat,
+      addFollowupQuestion,
+      apiUtils,
+      projectId,
+    ],
+  );
+
+  // Handle dialog close
+  const handleSetIsOpen = (newOpenState: boolean) => {
+    setIsOpen(newOpenState);
+
+    if (!newOpenState) {
+      // Clean up URL when closing the dialog
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("chat")) {
+        url.searchParams.delete("chat");
+        router.replace(url.pathname + url.search, { scroll: false });
+      }
+
+      // Reset all streaming and dialog states
+      chatDispatch({ type: "STOP_STREAMING" });
+      chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
+    }
+  };
 
   // Show loading state
-  if (isLoading) {
+  if (projectLoading || isLoading) {
     return <DashboardSkeleton />;
   }
 
@@ -119,6 +257,19 @@ function DashboardContent() {
           </AlertDescription>
         </Alert>
       )}
+
+      <ChatDialog
+        key={`chat-${activeChat?.id || "no-chat"}-${chatState.isStreaming ? "streaming" : "idle"}`}
+        isOpen={isOpen && !!activeChat}
+        setIsOpen={handleSetIsOpen}
+        activeChat={activeChat}
+        followUpQuestion={chatState.followUpQuestion}
+        isStreaming={chatState.isStreaming}
+        streamContent={chatState.streamContent}
+        messagesEndRef={messagesEndRef}
+        onFollowUpChange={handleFollowUpChange}
+        onFollowUpSubmit={handleFollowUpSubmit}
+      />
 
       {!hasProject ? (
         <OnboardingView />

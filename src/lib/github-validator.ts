@@ -3,12 +3,16 @@
 
 import { Octokit } from "octokit";
 
+import { checkCredits } from "./github-loader";
+
 export interface ValidationResult {
   isValid: boolean;
   isPublic: boolean;
   repoFullName?: string;
   error?: string;
   fileCount?: number;
+  defaultBranch?: string;
+  branches?: string[];
 }
 
 /**
@@ -45,19 +49,31 @@ export async function validateGitHubRepo(
 
     // Try to get repository details
     try {
-      const { data } = await octokit.rest.repos.get({
+      // Get basic repo info
+      const { data: repoData } = await octokit.rest.repos.get({
         owner,
         repo,
       });
 
-      // Get approximate file count (can be expanded later)
-      const fileCount = await getApproximateFileCount(octokit, owner, repo);
+      // Get repository branches
+      const { data: branchData } = await octokit.rest.repos.listBranches({
+        owner,
+        repo,
+        per_page: 100, // Increased to get more branches
+      });
 
+      // Use the default branch and checkCredits to get the accurate file count
+      const defaultBranch = repoData.default_branch;
+
+      // We'll return the repository info immediately to improve UI responsiveness
+      // File count will be calculated separately via checkCredits when needed
       return {
         isValid: true,
-        isPublic: !data.private,
+        isPublic: !repoData.private,
         repoFullName,
-        fileCount,
+        defaultBranch: defaultBranch,
+        branches: branchData.map((branch) => branch.name),
+        // No fileCount here - this will be provided by the checkCredits function
       };
     } catch (error: any) {
       if (error.status === 404) {
@@ -91,31 +107,5 @@ export async function validateGitHubRepo(
       isPublic: false,
       error: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
     };
-  }
-}
-
-/**
- * Gets an approximate count of files in the repository
- */
-async function getApproximateFileCount(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<number> {
-  try {
-    // This is a simplified approach - for a more accurate count,
-    // you would need to recursively traverse the repository
-    const { data } = await octokit.rest.git.getTree({
-      owner,
-      repo,
-      tree_sha: "HEAD",
-      recursive: "1", // Get all files recursively
-    });
-
-    // Count only blobs (files) and not trees (directories)
-    return data.tree.filter((item) => item.type === "blob").length;
-  } catch (error) {
-    // Fall back to a default value if we can't get an accurate count
-    return 50; // Default estimate
   }
 }

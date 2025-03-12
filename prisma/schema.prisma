@@ -26,6 +26,7 @@ model User {
     questionsAsked Question[]
     stripeTransactions StripeTransaction[]
     gitHubToken UserGitHubToken?
+    chats Chat[] // Add this relation
 }
 
 model Project {
@@ -42,6 +43,7 @@ model Project {
     SourceCodeEmbedding SourceCodeEmbedding[]
     savedQuestions Question[]
     meetings Meeting[]
+    chats Chat[] // Add this relation
 }
 
 model UserToProject {
@@ -146,6 +148,13 @@ model Question {
 
     userId String
     user   User   @relation(fields: [userId], references: [id])
+    
+    // New field to link questions to chats
+    chatId String?
+    chat Chat? @relation(fields: [chatId], references: [id])
+    
+    // For tracking follow-up questions
+    isFollowUp Boolean @default(false)
 }
 
 model Commit {
@@ -176,4 +185,20 @@ model StripeTransaction {
     user   User   @relation(fields: [userId], references: [id])
     
     credits Int
+}
+
+// New Chat model
+model Chat {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    title     String   // Title based on first question
+    
+    projectId String
+    project   Project  @relation(fields: [projectId], references: [id])
+    
+    userId    String
+    user      User     @relation(fields: [userId], references: [id])
+    
+    questions Question[] // Relation to questions
 }

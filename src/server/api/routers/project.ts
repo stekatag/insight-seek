@@ -75,7 +75,13 @@ export const projectRouter = createTRPCRouter({
         });
       }
 
-      const fileCount = validationResult.fileCount || 0;
+      // Get the accurate file count using checkCredits
+      const fileCount = await checkCredits(
+        input.githubUrl,
+        input.branch,
+        githubToken,
+      );
+      console.log(`Accurate file count for charging: ${fileCount}`);
 
       if (user.credits < fileCount) {
         throw new TRPCError({
@@ -100,7 +106,7 @@ export const projectRouter = createTRPCRouter({
           },
         });
 
-        // Update user credits
+        // Update user credits using the accurate file count
         await tx.user.update({
           where: { id: userId },
           data: { credits: { decrement: fileCount } },

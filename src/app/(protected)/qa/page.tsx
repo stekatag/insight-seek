@@ -1,58 +1,179 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import Image from "next/image";
+import {
+  FormEvent,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { readStreamableValue } from "ai/rsc";
+import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import useProject from "@/hooks/use-project";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import AskQuestionCard from "@/components/ask-question-card";
+import useRefetch from "@/hooks/use-refetch";
+import AskQuestionCard from "@/components/chat/ask-question-card";
 import {
   NoProjectEmptyState,
   NoQuestionsEmptyState,
 } from "@/components/empty-states";
 import GitBranchName from "@/components/git-branch-name";
 import { ProjectSelector } from "@/components/project-selector";
-import { QuestionView } from "@/app/(protected)/qa/components/question-view";
+import { askQuestion } from "@/app/(protected)/dashboard/actions";
 
-type FileReference = {
-  fileName: string;
-  sourceCode: string;
-};
+import ChatDialog from "../../../components/chat/chat-dialog";
+import ChatList from "./components/chat-list";
 
-export default function QAPage() {
+// Content component that uses useSearchParams - must be wrapped in Suspense
+function QAContent() {
   const { project, projectId } = useProject();
   const hasProject = !!project;
+  const refetch = useRefetch();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const { data: questions, isLoading } = api.qa.getAnswers.useQuery(
+  // State for managing follow-up questions
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamContent, setStreamContent] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch chats for the current project
+  const { data: chats, isLoading } = api.qa.getChats.useQuery(
     { projectId },
     {
-      enabled: hasProject, // Only fetch if there's a project
-      staleTime: 0, // Don't use cached data from other sessions/projects
+      enabled: hasProject,
+      staleTime: 0,
     },
   );
 
-  const isMobile = useIsMobile();
-
-  const [questionIndex, setQuestionIndex] = useState(0);
+  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
+  const [activeChatIndex, setActiveChatIndex] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const question = questions?.[questionIndex];
+  const activeChat = chats?.[activeChatIndex];
 
-  const handleQuestionClick = (idx: number) => {
-    setQuestionIndex(idx);
+  // Handle URL parameter to restore chat state on page load/refresh
+  useEffect(() => {
+    if (!chats || chats.length === 0 || isLoading) return;
+
+    const chatId = searchParams.get("chat");
+    if (!chatId) return;
+
+    // Find the chat with the matching ID
+    const chatIndex = chats.findIndex((chat) => chat.id === chatId);
+    if (chatIndex !== -1) {
+      setActiveChatIndex(chatIndex);
+      setIsOpen(true);
+      // Reset streaming states
+      setStreamContent("");
+      setFollowUpQuestion("");
+    }
+  }, [chats, isLoading, searchParams]);
+
+  const handleChatClick = (idx: number) => {
+    setActiveChatIndex(idx);
+
+    // Update URL with chat ID
+    if (chats && chats[idx]) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("chat", chats[idx].id);
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+
     setIsOpen(true);
+    // Reset streaming states
+    setStreamContent("");
+    setFollowUpQuestion("");
+  };
+
+  // Handle follow-up question change
+  const handleFollowUpChange = useCallback((value: string) => {
+    setFollowUpQuestion(value);
+  }, []);
+
+  // Handle follow-up question submission
+  const handleFollowUpSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+
+      if (
+        !followUpQuestion.trim() ||
+        isStreaming ||
+        !activeChat ||
+        !project?.id
+      )
+        return;
+
+      setIsStreaming(true);
+
+      try {
+        // Get answer from AI
+        const { output, filesReferences } = await askQuestion(
+          followUpQuestion,
+          project.id,
+        );
+
+        // Start streaming the answer
+        setStreamContent("");
+        let fullAnswer = "";
+
+        for await (const delta of readStreamableValue(output)) {
+          if (delta) {
+            fullAnswer += delta;
+            setStreamContent(fullAnswer);
+          }
+        }
+
+        // Save the follow-up question to the chat
+        await addFollowupQuestion.mutateAsync({
+          chatId: activeChat.id,
+          question: followUpQuestion,
+          answer: fullAnswer,
+          filesReferences,
+        });
+
+        // Clear input and stream content
+        setFollowUpQuestion("");
+        setStreamContent("");
+
+        // Refetch the chats to update the UI
+        refetch();
+      } catch (error) {
+        console.error("Failed to process follow-up:", error);
+        toast.error("Failed to get answer to follow-up question");
+      } finally {
+        setIsStreaming(false);
+      }
+    },
+    [
+      followUpQuestion,
+      isStreaming,
+      activeChat,
+      project?.id,
+      addFollowupQuestion,
+      refetch,
+    ],
+  );
+
+  // Handle dialog close
+  const handleSetIsOpen = (newOpenState: boolean) => {
+    setIsOpen(newOpenState);
+
+    if (!newOpenState) {
+      // Clean up URL when closing the dialog
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("chat")) {
+        url.searchParams.delete("chat");
+        router.replace(url.pathname + url.search, { scroll: false });
+      }
+
+      // Clear states
+      setStreamContent("");
+      setFollowUpQuestion("");
+    }
   };
 
   // Show empty state when no project exists
@@ -73,86 +194,48 @@ export default function QAPage() {
     );
   }
 
-  const QuestionsList = (
-    <div className="flex flex-col gap-2">
-      {questions?.map((question, idx) => (
-        <Fragment key={question.id}>
-          <div
-            onClick={() => handleQuestionClick(idx)}
-            className="flex w-full cursor-pointer items-start gap-3 rounded-lg border bg-white p-4 shadow hover:bg-gray-50"
-          >
-            <Image
-              className="mt-1 flex-shrink-0 rounded-full"
-              alt="User"
-              height={30}
-              width={30}
-              src={question?.user.imageUrl ?? ""}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <p className="line-clamp-1 break-words text-lg font-medium text-gray-700">
-                  {question.question}
-                </p>
-                <span className="shrink-0 text-xs text-gray-400 sm:ml-2">
-                  {question.createdAt.toLocaleDateString()}
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-1 break-words text-sm text-gray-500">
-                {question.answer}
-              </p>
-            </div>
-          </div>
-        </Fragment>
-      ))}
-    </div>
-  );
-
-  const QuestionContent = question && (
-    <QuestionView
-      question={question.question}
-      answer={question.answer}
-      date={question.createdAt}
-      filesReferences={question.filesReferences as FileReference[]}
-    />
-  );
-
   return (
     <>
       <ProjectSelector className="mb-4" />
       <AskQuestionCard />
 
-      <h2 className="mb-2 mt-4 text-xl font-semibold">
-        Saved Questions for {project.name}
+      <h2 className="mb-2 mt-6 text-xl font-semibold">
+        Saved Chats for {project?.name}
       </h2>
       <GitBranchName className="mb-4" />
 
-      {questions?.length === 0 ? <NoQuestionsEmptyState /> : QuestionsList}
-
-      {isMobile ? (
-        <Drawer open={isOpen && !!question} onOpenChange={setIsOpen}>
-          <DrawerContent>
-            <div className="max-h-[85vh] overflow-y-auto px-4 pb-6">
-              <DrawerHeader className="pl-0 text-left">
-                <DrawerTitle className="text-muted-foreground">
-                  Saved Question
-                </DrawerTitle>
-              </DrawerHeader>
-              {QuestionContent}
-            </div>
-          </DrawerContent>
-        </Drawer>
+      {!chats?.length ? (
+        <NoQuestionsEmptyState />
       ) : (
-        <Sheet open={isOpen && !!question} onOpenChange={setIsOpen}>
-          <SheetContent className="overflow-y-auto sm:max-w-[80vw]">
-            <SheetHeader>
-              <SheetTitle className="text-muted-foreground">
-                Saved Question
-              </SheetTitle>
-            </SheetHeader>
-            {QuestionContent}
-          </SheetContent>
-        </Sheet>
+        <ChatList chats={chats} onChatClick={handleChatClick} />
       )}
+
+      <ChatDialog
+        isOpen={isOpen && !!activeChat}
+        setIsOpen={handleSetIsOpen}
+        activeChat={activeChat}
+        followUpQuestion={followUpQuestion}
+        isStreaming={isStreaming}
+        streamContent={streamContent}
+        messagesEndRef={messagesEndRef}
+        onFollowUpChange={handleFollowUpChange}
+        onFollowUpSubmit={handleFollowUpSubmit}
+      />
     </>
+  );
+}
+
+// Main QA page component that properly wraps content with Suspense
+export default function QAPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-10">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      }
+    >
+      <QAContent />
+    </Suspense>
   );
 }
