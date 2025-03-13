@@ -64,6 +64,9 @@ export default function ProjectCreationCard({
   const [repoOwner, setRepoOwner] = useState<string>("");
   const [repoName, setRepoName] = useState<string>("");
 
+  // Add a state to track branch loading status
+  const [isLoadingBranches, setIsLoadingBranches] = useState<boolean>(false);
+
   // Validation states
   const [validationState, setValidationState] = useState<
     "idle" | "validating" | "validated" | "error"
@@ -77,6 +80,9 @@ export default function ProjectCreationCard({
   // Project creation mutation
   const createProject = api.project.createProject.useMutation({
     onSuccess: (project) => {
+      // Store the newly created project ID in localStorage
+      localStorage.setItem("lastCreatedProject", project.id);
+
       toast.success("Project created successfully!");
       onSuccess(project.id);
     },
@@ -114,11 +120,17 @@ export default function ProjectCreationCard({
     // Reset validation state
     resetValidation();
 
+    // Clear the branch selection when changing repositories
+    form.setValue("branch", "");
+
     // Parse owner and repo name from full name
     const parts = repo.fullName.split("/");
     if (parts.length === 2) {
       setRepoOwner(parts[0] || "");
       setRepoName(parts[1] || "");
+
+      // Set branch loading state to true when a new repo is selected
+      setIsLoadingBranches(true);
     }
   };
 
@@ -185,7 +197,7 @@ export default function ProjectCreationCard({
 
   return (
     <>
-      <Card>
+      <Card className="dark:border-secondary">
         <CardHeader>
           <CardTitle>Project Details</CardTitle>
           <CardDescription>
@@ -320,6 +332,7 @@ export default function ProjectCreationCard({
                         repoName={repoName}
                         selectedBranch={field.value}
                         onSelectBranch={handleSelectBranch}
+                        onLoadingChange={setIsLoadingBranches}
                       />
                     </FormControl>
                     <FormDescription>
@@ -333,11 +346,14 @@ export default function ProjectCreationCard({
 
             {/* Validation states */}
             {validationState === "validating" && (
-              <Alert className="bg-blue-50">
-                <AlertTitle>Validating repository...</AlertTitle>
-                <AlertDescription>
-                  Please wait while we check your GitHub repository.
-                </AlertDescription>
+              <Alert variant="info" className="flex items-center">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mr-2"></div>
+                <div>
+                  <AlertTitle>Validating repository...</AlertTitle>
+                  <AlertDescription>
+                    Please wait while we check your GitHub repository.
+                  </AlertDescription>
+                </div>
               </Alert>
             )}
 
@@ -350,12 +366,10 @@ export default function ProjectCreationCard({
             )}
 
             {validationState === "validated" && checkCredits.data && (
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-green-700">
-                  Repository validated successfully
-                </AlertTitle>
-                <AlertDescription className="text-green-600">
+              <Alert variant="success">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>Repository validated successfully</AlertTitle>
+                <AlertDescription>
                   {checkCredits.data.repoName} is ready to be indexed.
                   {checkCredits.data.isPrivate && " (Private repository)"}
                 </AlertDescription>
@@ -363,7 +377,7 @@ export default function ProjectCreationCard({
             )}
 
             {validationState === "validated" && checkCredits.data && (
-              <Alert>
+              <Alert variant="info">
                 <Info className="h-4 w-4" />
                 <AlertTitle>Credit Information</AlertTitle>
                 <AlertDescription>
@@ -377,7 +391,7 @@ export default function ProjectCreationCard({
                       <strong>{checkCredits.data.userCredits}</strong>
                     </p>
                     {!hasEnoughCredits && (
-                      <p className="text-red-500">
+                      <p className="text-red-500 dark:text-red-400">
                         You need{" "}
                         {checkCredits.data.fileCount -
                           checkCredits.data.userCredits}{" "}
@@ -421,7 +435,8 @@ export default function ProjectCreationCard({
                 (validationState === "validated" && !hasEnoughCredits) ||
                 !selectedRepo ||
                 !form.getValues("branch") ||
-                !formIsValid
+                !formIsValid ||
+                isLoadingBranches // Add this condition to disable the button while branches are loading
               }
             >
               <span>{getButtonText()}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, GitBranch, RefreshCw } from "lucide-react";
 
 import { GitHubBranch } from "@/lib/github-api";
@@ -25,6 +25,7 @@ interface GitHubBranchSelectorProps {
   repoName: string;
   selectedBranch: string;
   onSelectBranch: (branch: string) => void;
+  onLoadingChange?: (isLoading: boolean) => void;
 }
 
 export default function GitHubBranchSelector({
@@ -32,55 +33,92 @@ export default function GitHubBranchSelector({
   repoName,
   selectedBranch,
   onSelectBranch,
+  onLoadingChange,
 }: GitHubBranchSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Track if we've already fetched for this repo
+  const fetchedRepoRef = useRef<{ owner: string; name: string } | null>(null);
+
+  // Function to check if repo info has changed
+  const hasRepoChanged = useCallback(() => {
+    return (
+      !fetchedRepoRef.current ||
+      fetchedRepoRef.current.owner !== repoOwner ||
+      fetchedRepoRef.current.name !== repoName
+    );
+  }, [repoOwner, repoName]);
 
   // Get the display name of the currently selected branch
   const displayBranch =
     branches.find((b) => b.name === selectedBranch)?.name || selectedBranch;
 
-  // Define fetchBranches with useCallback to avoid recreating the function on every render
-  const fetchBranches = useCallback(async () => {
-    if (!repoOwner || !repoName) return;
+  // Define fetchBranches to avoid the infinite loop
+  const fetchBranches = useCallback(
+    async (force = false) => {
+      if (!repoOwner || !repoName) return;
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(
-        `/api/github/branches?owner=${repoOwner}&repo=${repoName}`,
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Skip if we've already fetched for this repo and not forcing a refresh
+      if (
+        !force &&
+        fetchedRepoRef.current &&
+        fetchedRepoRef.current.owner === repoOwner &&
+        fetchedRepoRef.current.name === repoName
+      ) {
+        return;
       }
 
-      const data = await response.json();
-      setBranches(data.branches || []);
+      // Set loading state
+      setIsLoading(true);
+      if (onLoadingChange) onLoadingChange(true);
 
-      // If no branch is selected yet, select the default branch
-      if (!selectedBranch) {
-        const defaultBranch = data.branches.find(
-          (branch: GitHubBranch) => branch.default,
+      try {
+        const response = await fetch(
+          `/api/github/branches?owner=${repoOwner}&repo=${repoName}`,
         );
-        if (defaultBranch) {
-          onSelectBranch(defaultBranch.name);
-        } else if (data.branches.length > 0) {
-          onSelectBranch(data.branches[0].name);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching branches:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [repoOwner, repoName, selectedBranch, onSelectBranch]);
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setBranches(data.branches || []);
+
+        // Update ref to indicate we've fetched for this repo
+        fetchedRepoRef.current = { owner: repoOwner, name: repoName };
+
+        // If no branch is selected yet, select the default branch
+        if (!selectedBranch) {
+          const defaultBranch = data.branches.find(
+            (branch: GitHubBranch) => branch.default,
+          );
+          if (defaultBranch) {
+            onSelectBranch(defaultBranch.name);
+          } else if (data.branches.length > 0) {
+            onSelectBranch(data.branches[0].name);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching branches:", error);
+      } finally {
+        setIsLoading(false);
+        if (onLoadingChange) onLoadingChange(false);
+      }
+    },
+    [repoOwner, repoName, onSelectBranch, onLoadingChange, selectedBranch],
+  );
+
+  // When repo changes, clear branches and fetch new ones
   useEffect(() => {
-    if (repoOwner && repoName) {
+    if (hasRepoChanged()) {
+      // Clear current branches when repo changes
+      setBranches([]);
+      // Fetch branches for the new repo
       fetchBranches();
     }
-  }, [repoOwner, repoName, fetchBranches]);
+  }, [repoOwner, repoName, fetchBranches, hasRepoChanged]);
 
   return (
     <div className="flex items-center space-x-2">
@@ -92,11 +130,21 @@ export default function GitHubBranchSelector({
             aria-expanded={isOpen}
             aria-label="Select a branch"
             className="w-[200px] justify-between"
+            disabled={isLoading || branches.length === 0}
           >
-            <div className="flex items-center gap-2 truncate">
-              <GitBranch className="h-4 w-4 shrink-0" />
-              <span className="truncate">{displayBranch}</span>
-            </div>
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <Spinner size="small" />
+                <span>Loading branches...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 truncate">
+                <GitBranch className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {displayBranch || "Select branch"}
+                </span>
+              </div>
+            )}
             <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -145,7 +193,7 @@ export default function GitHubBranchSelector({
       <Button
         size="icon"
         variant="ghost"
-        onClick={fetchBranches}
+        onClick={() => fetchBranches(true)} // Force refresh
         disabled={isLoading}
         className="h-10 w-10"
       >

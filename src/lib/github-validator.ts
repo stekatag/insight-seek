@@ -3,6 +3,7 @@
 
 import { Octokit } from "octokit";
 
+import { createRobustOctokit } from "./github-api";
 import { checkCredits } from "./github-loader";
 
 export interface ValidationResult {
@@ -42,31 +43,27 @@ export async function validateGitHubRepo(
     const repo = match[2].split(".")[0]; // Remove .git if present
     const repoFullName = `${owner}/${repo}`;
 
-    // Create Octokit instance with or without token
-    const octokit = githubToken
-      ? new Octokit({ auth: githubToken })
-      : new Octokit();
+    // Create robust Octokit instance with or without token
+    const octokit = createRobustOctokit(githubToken);
 
-    // Try to get repository details
+    // Try to get repository details with better error handling
     try {
-      // Get basic repo info
+      // Get basic repo info with timeout and retry logic
       const { data: repoData } = await octokit.rest.repos.get({
         owner,
         repo,
       });
 
-      // Get repository branches
+      // Get repository branches with robust configuration
       const { data: branchData } = await octokit.rest.repos.listBranches({
         owner,
         repo,
         per_page: 100, // Increased to get more branches
       });
 
-      // Use the default branch and checkCredits to get the accurate file count
+      // Use the default branch
       const defaultBranch = repoData.default_branch;
 
-      // We'll return the repository info immediately to improve UI responsiveness
-      // File count will be calculated separately via checkCredits when needed
       return {
         isValid: true,
         isPublic: !repoData.private,
@@ -76,7 +73,18 @@ export async function validateGitHubRepo(
         // No fileCount here - this will be provided by the checkCredits function
       };
     } catch (error: any) {
-      if (error.status === 404) {
+      // Enhanced error handling for stream and network errors
+      if (
+        error.message?.includes("Stream closed") ||
+        error.name === "AbortError"
+      ) {
+        return {
+          isValid: false,
+          isPublic: false,
+          error:
+            "Connection timed out. The repository might be too large or network is unstable. Please try again.",
+        };
+      } else if (error.status === 404) {
         // Repository not found - could be private or doesn't exist
         return {
           isValid: false,
@@ -97,11 +105,11 @@ export async function validateGitHubRepo(
         return {
           isValid: false,
           isPublic: false,
-          error: `Failed to access repository: ${error.message}`,
+          error: `Failed to access repository: ${error.message || "Unknown error"}`,
         };
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     return {
       isValid: false,
       isPublic: false,

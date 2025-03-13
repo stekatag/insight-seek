@@ -49,6 +49,14 @@ function DashboardContent() {
   const hasProject = !!project;
   const newProjectId = searchParams.get("newProject");
 
+  useEffect(() => {
+    // Check if we're coming from project creation
+    if (newProjectId) {
+      // Scroll to top of page
+      window.scrollTo(0, 0);
+    }
+  }, [newProjectId]);
+
   const [indexingProject, setIndexingProject] = useState<string | null>(
     newProjectId,
   );
@@ -242,8 +250,8 @@ function DashboardContent() {
     <div className="space-y-6">
       {/* Project indexing notification */}
       {indexingProject && indexingStatus && (
-        <Alert className="animate-pulse bg-blue-50">
-          <Spinner size="small" className="text-blue-500" />
+        <Alert variant="info">
+          <Spinner size="small" className="text-blue-500 dark:text-blue-400" />
           <AlertTitle>Project Indexing in Progress</AlertTitle>
           <AlertDescription>
             We're analyzing your project's source code. This might take a few

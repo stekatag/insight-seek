@@ -65,12 +65,10 @@ export default function MeetingDetailPage() {
           </Button>
         </Link>
 
-        <Alert className="border-yellow-200 bg-yellow-50">
-          <Clock className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-900">
-            Meeting is being processed
-          </AlertTitle>
-          <AlertDescription className="text-yellow-800">
+        <Alert variant="info">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>Meeting is being processed</AlertTitle>
+          <AlertDescription>
             <p>
               This meeting is still being processed and is not ready to view
               yet.
@@ -84,8 +82,11 @@ export default function MeetingDetailPage() {
 
         <div className="mt-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed bg-muted/40 p-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
-              <Spinner size="medium" className="text-yellow-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+              <Spinner
+                size="medium"
+                className="text-blue-600 dark:text-blue-400"
+              />
             </div>
             <h3 className="text-lg font-medium">Analyzing your meeting</h3>
             <p className="max-w-md text-sm text-muted-foreground">

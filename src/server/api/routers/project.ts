@@ -172,6 +172,28 @@ export const projectRouter = createTRPCRouter({
 
       // Delete project in a transaction to ensure all related data is deleted
       return await ctx.db.$transaction(async (tx) => {
+        // Delete chats and related questions
+        // First find all chats for this project
+        const chats = await tx.chat.findMany({
+          where: { projectId: input.projectId },
+          select: { id: true },
+        });
+
+        // Then delete all questions associated with these chats
+        await tx.question.deleteMany({
+          where: {
+            OR: [
+              { projectId: input.projectId },
+              { chatId: { in: chats.map((chat) => chat.id) } },
+            ],
+          },
+        });
+
+        // Now delete the chats themselves
+        await tx.chat.deleteMany({
+          where: { projectId: input.projectId },
+        });
+
         // Delete meetings and related data
         const meetings = await tx.meeting.findMany({
           where: { projectId: input.projectId },
@@ -192,7 +214,9 @@ export const projectRouter = createTRPCRouter({
           where: { projectId: input.projectId },
         });
 
-        // Delete questions
+        // Delete standalone questions that weren't associated with chats
+        // Note: we already deleted chat-associated questions above
+        // This is technically redundant with the earlier deletion but ensures we get everything
         await tx.question.deleteMany({
           where: { projectId: input.projectId },
         });
@@ -237,11 +261,32 @@ export const projectRouter = createTRPCRouter({
         // Ensure token is either string or undefined, not null
         const githubToken = token || undefined;
 
-        // Validate the repository
-        const validationResult = await validateGitHubRepo(
-          input.githubUrl,
-          githubToken,
-        );
+        // Validate the repository with better error handling for stream closed errors
+        let validationResult;
+        try {
+          validationResult = await validateGitHubRepo(
+            input.githubUrl,
+            githubToken,
+          );
+        } catch (validationError: any) {
+          console.error("Validation error:", validationError);
+          // Handle stream closed errors here too
+          if (
+            validationError.message?.includes("Stream closed") ||
+            validationError.name === "AbortError"
+          ) {
+            throw new TRPCError({
+              code: "TIMEOUT",
+              message:
+                "Connection timed out. Please try again or use a smaller repository.",
+            });
+          }
+
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: validationError.message || "Repository validation failed",
+          });
+        }
 
         if (!validationResult.isValid) {
           throw new TRPCError({
@@ -279,11 +324,21 @@ export const projectRouter = createTRPCRouter({
             input.branch,
             githubToken,
           );
-        } catch (countError) {
+        } catch (countError: any) {
           console.error("Error getting exact file count:", countError);
 
-          // Use a fallback estimate if exact count fails
-          fileCount = validationResult.fileCount || 100;
+          // Specific handling for stream closed errors
+          if (
+            countError.message?.includes("Stream closed") ||
+            countError.name === "AbortError"
+          ) {
+            console.warn("Stream closed during credit check, using estimate");
+            fileCount = 150; // Conservative estimate
+          } else {
+            // Use a fallback estimate if exact count fails for other reasons
+            fileCount = validationResult.fileCount || 100;
+          }
+
           console.log(`Using estimated file count: ${fileCount}`);
         }
 
@@ -293,8 +348,21 @@ export const projectRouter = createTRPCRouter({
           repoName: validationResult.repoFullName,
           isPrivate: !validationResult.isPublic,
         };
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error checking credits:", error);
+
+        // Special handling for stream closed errors
+        if (
+          error.message?.includes("Stream closed") ||
+          error.name === "AbortError"
+        ) {
+          throw new TRPCError({
+            code: "TIMEOUT",
+            message:
+              "Connection timed out. The repository might be too large. Please try again.",
+          });
+        }
+
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:

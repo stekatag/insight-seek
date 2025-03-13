@@ -185,7 +185,7 @@ export default function GitHubConnectionStatus() {
 
   return (
     <>
-      <Card className="mb-6">
+      <Card className="mb-6 dark:border-secondary">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">GitHub Integration</CardTitle>
           <CardDescription>

@@ -29,6 +29,25 @@ export function ProjectSelector({ className }: { className?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredProjects, setFilteredProjects] = useState(projects || []);
 
+  // Check for last created project in localStorage
+  useEffect(() => {
+    const lastCreatedProject = localStorage.getItem("lastCreatedProject");
+
+    // If we have a newly created project and projects are loaded
+    if (lastCreatedProject && projects?.length) {
+      // Verify the project exists in the list
+      const projectExists = projects.some((p) => p.id === lastCreatedProject);
+
+      if (projectExists) {
+        // Select the project
+        setProjectId(lastCreatedProject);
+
+        // Clear the localStorage item
+        localStorage.removeItem("lastCreatedProject");
+      }
+    }
+  }, [projects, setProjectId]);
+
   // Sort projects by creation date (newest first)
   const sortedProjects = projects?.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

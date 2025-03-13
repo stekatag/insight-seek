@@ -142,7 +142,7 @@ export default function DeleteProjectButton({
             >
               {deleteProject.isPending ? (
                 <>
-                  <Spinner size="small" />
+                  <Spinner className="text-white" size="small" />
                   Deleting...
                 </>
               ) : (

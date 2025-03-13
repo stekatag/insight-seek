@@ -4,6 +4,7 @@ import { Document } from "@langchain/core/documents";
 import { Octokit } from "octokit";
 
 import { generateEmbedding, summarizeCode } from "./gemini";
+import { createRobustOctokit } from "./github-api";
 
 // Modified getFileCount function to more accurately match what loadGithubRepo will process
 const getFileCount = async (
@@ -220,9 +221,8 @@ export const checkCredits = async (
   githubToken?: string,
 ): Promise<number> => {
   try {
-    const octokit = new Octokit({
-      auth: githubToken,
-    });
+    // Use robust Octokit with better timeout and retry
+    const octokit = createRobustOctokit(githubToken);
 
     // Parse the GitHub URL to get owner and repo
     const urlParts = githubUrl.split("/");

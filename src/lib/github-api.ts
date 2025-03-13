@@ -3,6 +3,26 @@ import { Octokit } from "octokit";
 
 import { getInstallationToken } from "./github-app";
 
+/**
+ * Creates an authenticated Octokit instance with improved timeout and retry settings
+ * @param userToken Optional user-provided token for private repositories
+ */
+export function createRobustOctokit(userToken?: string) {
+  return new Octokit({
+    auth: userToken,
+    request: {
+      // Increase timeout to handle larger repositories
+      timeout: 60000, // 60 seconds
+      // Add retry logic for better reliability
+      retry: {
+        doNotRetry: ["429"],
+        retries: 3,
+        factor: 2,
+      },
+    },
+  });
+}
+
 export interface GitHubRepository {
   id: number;
   name: string;
@@ -55,7 +75,7 @@ export async function verifyGitHubToken(userId: string): Promise<{
     }
 
     // For GitHub App tokens, the most reliable test is checking if we can list repositories
-    const octokit = new Octokit({ auth: userGithubToken.token });
+    const octokit = createRobustOctokit(userGithubToken.token);
 
     try {
       // This is the most important test for GitHub App installations
@@ -140,7 +160,7 @@ export async function getRepositoryBranches(
     return [];
   }
 
-  const octokit = new Octokit({ auth: token });
+  const octokit = createRobustOctokit(token);
 
   try {
     // Get all branches
