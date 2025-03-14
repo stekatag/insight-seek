@@ -232,7 +232,7 @@ export default function GitHubConnectionStatus() {
                         disabled={removeTokenMutation.isPending}
                       >
                         {removeTokenMutation.isPending ? (
-                          <Spinner size="small" />
+                          <Spinner size="small" className="text-white" />
                         ) : (
                           <XCircle className=" h-4 w-4" />
                         )}
@@ -379,7 +379,7 @@ export default function GitHubConnectionStatus() {
               disabled={removeTokenMutation.isPending}
             >
               {removeTokenMutation.isPending ? (
-                <Spinner size="small" />
+                <Spinner size="small" className="text-white" />
               ) : (
                 <XCircle className=" h-4 w-4" />
               )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import {
@@ -64,8 +64,16 @@ export default function ProjectCreationCard({
   const [repoOwner, setRepoOwner] = useState<string>("");
   const [repoName, setRepoName] = useState<string>("");
 
-  // Add a state to track branch loading status
-  const [isLoadingBranches, setIsLoadingBranches] = useState<boolean>(false);
+  // Improved branch loading state tracking
+  const [branchState, setBranchState] = useState<{
+    isLoading: boolean;
+    isLoaded: boolean;
+    branches: any[]; // Using 'any' to match GitHubBranch type without importing
+  }>({
+    isLoading: false,
+    isLoaded: false,
+    branches: [],
+  });
 
   // Validation states
   const [validationState, setValidationState] = useState<
@@ -76,6 +84,18 @@ export default function ProjectCreationCard({
   // GitHub status for conditional UI
   const { data: githubData } = api.user.getGithubStatus.useQuery();
   const hasGithubConnection = !!githubData?.connected;
+
+  // Define resetValidation function early to avoid the "used before declaration" error
+  const resetValidation = useCallback(
+    () => {
+      setValidationState("idle");
+      setValidationError(null);
+      checkCredits.reset();
+    },
+    [
+      /* Will add checkCredits dependency after its declaration */
+    ],
+  );
 
   // Project creation mutation
   const createProject = api.project.createProject.useMutation({
@@ -108,37 +128,77 @@ export default function ProjectCreationCard({
     },
   });
 
-  // Handle repository selection
-  const handleSelectRepo = (repo: GitHubRepository) => {
-    setSelectedRepo(repo);
+  // Update resetValidation with proper dependency
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const resetValidationWithDeps = useCallback(resetValidation, [checkCredits]);
 
-    // Update form values
-    form.setValue("repoUrl", repo.htmlUrl);
-    form.setValue("projectName", repo.name);
-    form.trigger(["repoUrl", "projectName"]);
+  // Use a ref to track previous repo to prevent unnecessary state updates
+  const prevRepoRef = useRef<string>("");
 
-    // Reset validation state
-    resetValidation();
+  // Handle branch loading state changes - use memoized callback
+  const handleBranchLoadingChange = useCallback((isLoading: boolean) => {
+    setBranchState((prev) => ({
+      ...prev,
+      isLoading,
+    }));
+  }, []);
 
-    // Clear the branch selection when changing repositories
-    form.setValue("branch", "");
+  // Handle branches loaded event - use memoized callback
+  const handleBranchesLoaded = useCallback((branches: any[]) => {
+    setBranchState((prev) => {
+      // Only update if not already loaded to prevent cycles
+      if (prev.isLoaded) return prev;
 
-    // Parse owner and repo name from full name
-    const parts = repo.fullName.split("/");
-    if (parts.length === 2) {
-      setRepoOwner(parts[0] || "");
-      setRepoName(parts[1] || "");
+      return {
+        isLoading: false,
+        isLoaded: true,
+        branches,
+      };
+    });
+  }, []);
 
-      // Set branch loading state to true when a new repo is selected
-      setIsLoadingBranches(true);
-    }
-  };
+  // Handle repository selection with safeguards against redundant updates
+  const handleSelectRepo = useCallback(
+    (repo: GitHubRepository) => {
+      // Skip update if selecting the same repo
+      if (prevRepoRef.current === repo.fullName) return;
+
+      prevRepoRef.current = repo.fullName;
+      setSelectedRepo(repo);
+
+      // Update form values
+      form.setValue("repoUrl", repo.htmlUrl);
+      form.setValue("projectName", repo.name);
+      form.trigger(["repoUrl", "projectName"]);
+
+      // Reset validation state
+      resetValidationWithDeps();
+
+      // Clear the branch selection when changing repositories
+      form.setValue("branch", "");
+
+      // Reset branch state when changing repositories - do this once
+      setBranchState({
+        isLoading: true,
+        isLoaded: false,
+        branches: [],
+      });
+
+      // Parse owner and repo name from full name
+      const parts = repo.fullName.split("/");
+      if (parts.length === 2) {
+        setRepoOwner(parts[0] || "");
+        setRepoName(parts[1] || "");
+      }
+    },
+    [form, resetValidationWithDeps],
+  );
 
   // Handle branch selection
   const handleSelectBranch = (branch: string) => {
     form.setValue("branch", branch);
     form.trigger("branch");
-    resetValidation();
+    resetValidationWithDeps();
   };
 
   // Handle form submission
@@ -168,24 +228,25 @@ export default function ProjectCreationCard({
     ? checkCredits.data.fileCount <= checkCredits.data.userCredits
     : true;
 
-  // Reset the validation state
-  const resetValidation = () => {
-    setValidationState("idle");
-    setValidationError(null);
-    checkCredits.reset();
-  };
+  // Determine if validation should be allowed
+  const canValidate =
+    selectedRepo &&
+    form.getValues("branch") &&
+    branchState.isLoaded &&
+    !branchState.isLoading;
 
-  // Check form validity - project name and branch must be set and a repo selected
+  // Check form validity with improved conditions
   const formIsValid =
     form.formState.isValid &&
     form.getValues("projectName") !== "" &&
     form.getValues("branch") !== "" &&
-    form.getValues("repoUrl") !== "";
+    form.getValues("repoUrl") !== "" &&
+    !branchState.isLoading;
 
   // Get the correct button text based on validation state
   const getButtonText = () => {
     if (checkCredits.isPending) {
-      return "Validating Repository...";
+      return "Validating Repository";
     }
 
     if (validationState === "validated") {
@@ -223,7 +284,7 @@ export default function ProjectCreationCard({
                       {...field}
                       onChange={(e) => {
                         field.onChange(e);
-                        resetValidation();
+                        resetValidationWithDeps();
                       }}
                     />
                   </FormControl>
@@ -279,7 +340,7 @@ export default function ProjectCreationCard({
                       setRepoName("");
                       form.setValue("repoUrl", "");
                       form.setValue("branch", "");
-                      resetValidation();
+                      resetValidationWithDeps();
                     }}
                   >
                     <X className="h-4 w-4" />
@@ -332,7 +393,8 @@ export default function ProjectCreationCard({
                         repoName={repoName}
                         selectedBranch={field.value}
                         onSelectBranch={handleSelectBranch}
-                        onLoadingChange={setIsLoadingBranches}
+                        onLoadingChange={handleBranchLoadingChange}
+                        onBranchesLoaded={handleBranchesLoaded}
                       />
                     </FormControl>
                     <FormDescription>
@@ -370,8 +432,8 @@ export default function ProjectCreationCard({
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertTitle>Repository validated successfully</AlertTitle>
                 <AlertDescription>
-                  {checkCredits.data.repoName} is ready to be indexed.
-                  {checkCredits.data.isPrivate && " (Private repository)"}
+                  {selectedRepo?.name || "Repository"} is ready to be indexed.
+                  {selectedRepo?.private && " (Private repository)"}
                 </AlertDescription>
               </Alert>
             )}
@@ -433,24 +495,32 @@ export default function ProjectCreationCard({
                 createProject.isPending ||
                 checkCredits.isPending ||
                 (validationState === "validated" && !hasEnoughCredits) ||
-                !selectedRepo ||
-                !form.getValues("branch") ||
-                !formIsValid ||
-                isLoadingBranches // Add this condition to disable the button while branches are loading
+                !canValidate || // Use our new improved check
+                !formIsValid
               }
             >
-              <span>{getButtonText()}</span>
-              {(createProject.isPending || checkCredits.isPending) && (
-                <Spinner className="ml-2 text-white" size="small" />
+              {branchState.isLoading ? (
+                <>
+                  <Spinner className="text-white" size="small" />
+                  <span>Loading branches</span>
+                </>
+              ) : (
+                <>
+                  <span>{getButtonText()}</span>
+                  {(createProject.isPending || checkCredits.isPending) && (
+                    <Spinner className="ml-2 text-white" size="small" />
+                  )}
+                </>
               )}
             </Button>
           </div>
         </CardFooter>
       </Card>
 
-      {/* Repository selector dialog */}
+      {/* Repository selector dialog - key helps with resetting state if needed */}
       {userId && (
         <GitHubRepoSelector
+          key={`repo-selector-${selectedRepo?.fullName || "none"}`}
           isOpen={isRepoSelectorOpen}
           onClose={() => setIsRepoSelectorOpen(false)}
           onSelectRepo={handleSelectRepo}

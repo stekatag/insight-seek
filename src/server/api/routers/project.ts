@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { isAbortOrTimeoutError } from "@/lib/error-utils";
 import { pullCommits } from "@/lib/github";
 import { getInstallationToken } from "@/lib/github-app";
 import { checkCredits, indexGithubRepo } from "@/lib/github-loader";
@@ -243,12 +244,11 @@ export const projectRouter = createTRPCRouter({
       });
     }),
 
-  // Check required credits for a GitHub repository
-  checkCredits: protectedProdecure
+  // 1. First step: Just validate the repository URL and get branches
+  validateRepository: protectedProdecure
     .input(
       z.object({
         githubUrl: z.string(),
-        branch: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -257,36 +257,13 @@ export const projectRouter = createTRPCRouter({
       try {
         // Get the user's GitHub token if they have one
         const token = await getInstallationToken(userId);
-
-        // Ensure token is either string or undefined, not null
         const githubToken = token || undefined;
 
-        // Validate the repository with better error handling for stream closed errors
-        let validationResult;
-        try {
-          validationResult = await validateGitHubRepo(
-            input.githubUrl,
-            githubToken,
-          );
-        } catch (validationError: any) {
-          console.error("Validation error:", validationError);
-          // Handle stream closed errors here too
-          if (
-            validationError.message?.includes("Stream closed") ||
-            validationError.name === "AbortError"
-          ) {
-            throw new TRPCError({
-              code: "TIMEOUT",
-              message:
-                "Connection timed out. Please try again or use a smaller repository.",
-            });
-          }
-
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: validationError.message || "Repository validation failed",
-          });
-        }
+        // Basic validation without file counting
+        const validationResult = await validateGitHubRepo(
+          input.githubUrl,
+          githubToken,
+        );
 
         if (!validationResult.isValid) {
           throw new TRPCError({
@@ -303,6 +280,41 @@ export const projectRouter = createTRPCRouter({
           });
         }
 
+        return {
+          isValid: true,
+          repoName: validationResult.repoFullName,
+          branches: validationResult.branches || [],
+          defaultBranch: validationResult.defaultBranch || "main",
+          isPrivate: !validationResult.isPublic,
+        };
+      } catch (error) {
+        console.error("Repository validation error:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to validate repository",
+        });
+      }
+    }),
+
+  // 2. Second step: Check file count and credits once branch is selected
+  checkCredits: protectedProdecure
+    .input(
+      z.object({
+        githubUrl: z.string(),
+        branch: z.string().min(1, "Branch name is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.userId!;
+
+      try {
+        // Get the user's GitHub token
+        const token = await getInstallationToken(userId);
+        const githubToken = token || undefined;
+
         // Get user credits
         const user = await ctx.db.user.findUnique({
           where: { id: userId },
@@ -316,50 +328,36 @@ export const projectRouter = createTRPCRouter({
           });
         }
 
-        // Try to get actual file count with specific branch, but have fallbacks
-        let fileCount: number;
+        // Count files with the specified branch
+        let fileCount;
         try {
           fileCount = await checkCredits(
             input.githubUrl,
             input.branch,
             githubToken,
           );
-        } catch (countError: any) {
-          console.error("Error getting exact file count:", countError);
-
-          // Specific handling for stream closed errors
-          if (
-            countError.message?.includes("Stream closed") ||
-            countError.name === "AbortError"
-          ) {
+        } catch (countError) {
+          if (isAbortOrTimeoutError(countError, undefined)) {
             console.warn("Stream closed during credit check, using estimate");
             fileCount = 150; // Conservative estimate
           } else {
-            // Use a fallback estimate if exact count fails for other reasons
-            fileCount = validationResult.fileCount || 100;
+            throw countError; // Re-throw other errors
           }
-
-          console.log(`Using estimated file count: ${fileCount}`);
         }
 
         return {
           fileCount: fileCount || 0,
           userCredits: user.credits,
-          repoName: validationResult.repoFullName,
-          isPrivate: !validationResult.isPublic,
+          hasEnoughCredits: (user.credits || 0) >= (fileCount || 0),
         };
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error checking credits:", error);
 
-        // Special handling for stream closed errors
-        if (
-          error.message?.includes("Stream closed") ||
-          error.name === "AbortError"
-        ) {
+        if (isAbortOrTimeoutError(error, undefined)) {
           throw new TRPCError({
             code: "TIMEOUT",
             message:
-              "Connection timed out. The repository might be too large. Please try again.",
+              "Connection timed out. The repository might be too large. Please try again later.",
           });
         }
 

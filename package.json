@@ -66,7 +66,6 @@
     "@trpc/react-query": "11.0.0-rc.768",
     "@trpc/server": "11.0.0-rc.768",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.1.54",
     "assemblyai": "^4.9.0",
     "axios": "^1.8.1",

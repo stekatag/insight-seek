@@ -85,7 +85,7 @@ export default function DeleteMeetingButton({
             >
               {deleteMeeting.isPending ? (
                 <>
-                  <Spinner size="small" className="mr-2" />
+                  <Spinner size="small" className="mr-2 text-white" />
                   <span>Deleting...</span>
                 </>
               ) : (

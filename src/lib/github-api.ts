@@ -7,17 +7,18 @@ import { getInstallationToken } from "./github-app";
  * Creates an authenticated Octokit instance with improved timeout and retry settings
  * @param userToken Optional user-provided token for private repositories
  */
-export function createRobustOctokit(userToken?: string) {
+export function createRobustOctokit(userToken?: string, signal?: AbortSignal) {
   return new Octokit({
     auth: userToken,
     request: {
       // Increase timeout to handle larger repositories
-      timeout: 60000, // 60 seconds
+      timeout: 40000, // 40 seconds
+      signal,
       // Add retry logic for better reliability
       retry: {
-        doNotRetry: ["429"],
-        retries: 3,
-        factor: 2,
+        doNotRetry: ["429", "AbortError"],
+        retries: 2,
+        factor: 1.5,
       },
     },
   });

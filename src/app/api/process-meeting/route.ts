@@ -1,12 +1,13 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/server/db";
+import { auth } from "@clerk/nextjs/server";
+import type { Issue } from "@prisma/client";
+import { z } from "zod";
+
 import {
   startMeetingTranscription,
   type ProcessedSummary,
 } from "@/lib/assembly";
-import { db } from "@/server/db";
-import { auth } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import type { Issue } from "@prisma/client";
 
 const bodyParser = z.object({
   audio_url: z.string(),
@@ -134,7 +135,7 @@ async function pollTranscriptionStatus(
           }),
         );
 
-        const limit = pLimit(10);
+        const limit = pLimit(5);
 
         console.log("Saving embeddings to database");
         // Save the embeddings

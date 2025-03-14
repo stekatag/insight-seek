@@ -26,6 +26,7 @@ interface GitHubBranchSelectorProps {
   selectedBranch: string;
   onSelectBranch: (branch: string) => void;
   onLoadingChange?: (isLoading: boolean) => void;
+  onBranchesLoaded?: (branches: GitHubBranch[]) => void;
 }
 
 export default function GitHubBranchSelector({
@@ -34,91 +35,119 @@ export default function GitHubBranchSelector({
   selectedBranch,
   onSelectBranch,
   onLoadingChange,
+  onBranchesLoaded,
 }: GitHubBranchSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Track if we've already fetched for this repo
-  const fetchedRepoRef = useRef<{ owner: string; name: string } | null>(null);
+  // Track current fetch request details to avoid race conditions
+  const currentFetchRef = useRef<{
+    owner: string;
+    name: string;
+    id: number;
+  } | null>(null);
+  const fetchIdCounter = useRef(0);
 
-  // Function to check if repo info has changed
-  const hasRepoChanged = useCallback(() => {
-    return (
-      !fetchedRepoRef.current ||
-      fetchedRepoRef.current.owner !== repoOwner ||
-      fetchedRepoRef.current.name !== repoName
-    );
-  }, [repoOwner, repoName]);
+  // Use refs for callback props to avoid dependency changes triggering re-fetches
+  const onLoadingChangeRef = useRef(onLoadingChange);
+  const onBranchesLoadedRef = useRef(onBranchesLoaded);
+  const onSelectBranchRef = useRef(onSelectBranch);
+
+  // Update refs when props change
+  useEffect(() => {
+    onLoadingChangeRef.current = onLoadingChange;
+    onBranchesLoadedRef.current = onBranchesLoaded;
+    onSelectBranchRef.current = onSelectBranch;
+  });
 
   // Get the display name of the currently selected branch
   const displayBranch =
     branches.find((b) => b.name === selectedBranch)?.name || selectedBranch;
 
-  // Define fetchBranches to avoid the infinite loop
-  const fetchBranches = useCallback(
-    async (force = false) => {
-      if (!repoOwner || !repoName) return;
+  const fetchBranches = useCallback(async () => {
+    if (!repoOwner || !repoName) return;
 
-      // Skip if we've already fetched for this repo and not forcing a refresh
-      if (
-        !force &&
-        fetchedRepoRef.current &&
-        fetchedRepoRef.current.owner === repoOwner &&
-        fetchedRepoRef.current.name === repoName
-      ) {
+    // Generate unique ID for this fetch request
+    const fetchId = ++fetchIdCounter.current;
+    currentFetchRef.current = { owner: repoOwner, name: repoName, id: fetchId };
+
+    // Set loading state immediately
+    setIsLoading(true);
+    if (onLoadingChangeRef.current) onLoadingChangeRef.current(true);
+
+    try {
+      const response = await fetch(
+        `/api/github/branches?owner=${repoOwner}&repo=${repoName}`,
+      );
+
+      // Check if this request is still relevant (no newer requests started)
+      if (currentFetchRef.current?.id !== fetchId) {
+        console.log("Ignoring stale branch fetch result");
         return;
       }
 
-      // Set loading state
-      setIsLoading(true);
-      if (onLoadingChange) onLoadingChange(true);
-
-      try {
-        const response = await fetch(
-          `/api/github/branches?owner=${repoOwner}&repo=${repoName}`,
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setBranches(data.branches || []);
-
-        // Update ref to indicate we've fetched for this repo
-        fetchedRepoRef.current = { owner: repoOwner, name: repoName };
-
-        // If no branch is selected yet, select the default branch
-        if (!selectedBranch) {
-          const defaultBranch = data.branches.find(
-            (branch: GitHubBranch) => branch.default,
-          );
-          if (defaultBranch) {
-            onSelectBranch(defaultBranch.name);
-          } else if (data.branches.length > 0) {
-            onSelectBranch(data.branches[0].name);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching branches:", error);
-      } finally {
-        setIsLoading(false);
-        if (onLoadingChange) onLoadingChange(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    },
-    [repoOwner, repoName, onSelectBranch, onLoadingChange, selectedBranch],
-  );
 
-  // When repo changes, clear branches and fetch new ones
-  useEffect(() => {
-    if (hasRepoChanged()) {
-      // Clear current branches when repo changes
+      const data = await response.json();
+      const loadedBranches = data.branches || [];
+      setBranches(loadedBranches);
+
+      // Notify parent that branches were loaded - use ref to avoid dependency issues
+      if (onBranchesLoadedRef.current) {
+        onBranchesLoadedRef.current(loadedBranches);
+      }
+
+      // Select default branch if none is selected
+      if (!selectedBranch && loadedBranches.length > 0) {
+        const defaultBranch = loadedBranches.find(
+          (branch: GitHubBranch) => branch.default,
+        );
+        if (defaultBranch) {
+          if (onSelectBranchRef.current)
+            onSelectBranchRef.current(defaultBranch.name);
+        } else if (loadedBranches[0]) {
+          if (onSelectBranchRef.current)
+            onSelectBranchRef.current(loadedBranches[0].name);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching branches:", error);
       setBranches([]);
-      // Fetch branches for the new repo
-      fetchBranches();
+    } finally {
+      // Only update loading state if this is still the current request
+      if (currentFetchRef.current?.id === fetchId) {
+        setIsLoading(false);
+        if (onLoadingChangeRef.current) onLoadingChangeRef.current(false);
+      }
     }
-  }, [repoOwner, repoName, fetchBranches, hasRepoChanged]);
+  }, [repoOwner, repoName, selectedBranch]); // Remove callback dependencies
+
+  // Detect initial load or repository change
+  useEffect(() => {
+    // Only fetch if we have both owner and name
+    if (repoOwner && repoName) {
+      const repoChanged =
+        !currentFetchRef.current ||
+        currentFetchRef.current.owner !== repoOwner ||
+        currentFetchRef.current.name !== repoName;
+
+      if (repoChanged) {
+        // Clear branches immediately to prevent showing stale data
+        setBranches([]);
+        // Fetch branches for the new repo (with slight delay to prevent render cycles)
+        const timerId = setTimeout(fetchBranches, 0);
+        return () => clearTimeout(timerId);
+      }
+    }
+
+    return () => {
+      // Clean up when component unmounts or repo changes
+      currentFetchRef.current = null;
+    };
+  }, [repoOwner, repoName, fetchBranches]);
 
   return (
     <div className="flex items-center space-x-2">
@@ -193,7 +222,7 @@ export default function GitHubBranchSelector({
       <Button
         size="icon"
         variant="ghost"
-        onClick={() => fetchBranches(true)} // Force refresh
+        onClick={fetchBranches}
         disabled={isLoading}
         className="h-10 w-10"
       >

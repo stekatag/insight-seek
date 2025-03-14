@@ -3,6 +3,7 @@ import { GithubRepoLoader } from "@langchain/community/document_loaders/web/gith
 import { Document } from "@langchain/core/documents";
 import { Octokit } from "octokit";
 
+import { isAbortOrTimeoutError } from "./error-utils";
 import { generateEmbedding, summarizeCode } from "./gemini";
 import { createRobustOctokit } from "./github-api";
 
@@ -14,8 +15,14 @@ const getFileCount = async (
   githubRepo: string,
   branch: string,
   acc: number = 0,
+  signal?: AbortSignal,
 ): Promise<number> => {
   try {
+    // Check if operation was aborted
+    if (signal?.aborted) {
+      throw new Error("Operation aborted");
+    }
+
     const { data } = await octokit.rest.repos.getContent({
       owner: githubOwner,
       repo: githubRepo,
@@ -219,34 +226,70 @@ export const checkCredits = async (
   githubUrl: string,
   branch: string,
   githubToken?: string,
+  options?: { signal?: AbortSignal },
 ): Promise<number> => {
   try {
+    // Validate branch parameter first - this is critical
+    if (!branch || typeof branch !== "string" || branch.trim() === "") {
+      console.error(
+        "Cannot check credits: branch parameter is missing or empty",
+      );
+      throw new Error("Branch parameter is required");
+    }
+
     // Use robust Octokit with better timeout and retry
-    const octokit = createRobustOctokit(githubToken);
+    const octokit = createRobustOctokit(githubToken, options?.signal);
 
     // Parse the GitHub URL to get owner and repo
     const urlParts = githubUrl.split("/");
     const githubOwner = urlParts[3];
     const githubRepo = urlParts[4]?.replace(".git", "");
 
-    if (!githubOwner || !githubRepo) return 0;
+    if (!githubOwner || !githubRepo) {
+      console.error("Invalid GitHub URL format:", githubUrl);
+      throw new Error("Invalid GitHub URL format");
+    }
 
-    // Check rate limit before making calls
+    // Verify the branch exists before proceeding
     try {
-      const { data: rateLimit } = await octokit.rest.rateLimit.get();
-      console.log(
-        `Rate limit remaining: ${rateLimit.resources.core.remaining}/${rateLimit.resources.core.limit}`,
-      );
+      if (!options?.signal?.aborted) {
+        // Check if the branch exists
+        await octokit.rest.repos.getBranch({
+          owner: githubOwner,
+          repo: githubRepo,
+          branch: branch,
+        });
+      }
+    } catch (branchError) {
+      console.error(`Branch verification error for ${branch}:`, branchError);
+      throw new Error(`Branch "${branch}" does not exist or is not accessible`);
+    }
 
-      if (rateLimit.resources.core.remaining < 20) {
-        console.warn("GitHub API rate limit low! File count may be estimated.");
+    // Only check rate limit if we have sufficient remaining time
+    // This avoids unnecessary API calls
+    try {
+      if (!options?.signal?.aborted) {
+        const { data: rateLimit } = await octokit.rest.rateLimit.get();
+        console.log(
+          `Rate limit remaining: ${rateLimit.resources.core.remaining}/${rateLimit.resources.core.limit}`,
+        );
+
+        if (rateLimit.resources.core.remaining < 20) {
+          console.warn(
+            "GitHub API rate limit low! File count may be estimated.",
+          );
+        }
       }
     } catch (rateLimitError) {
       console.error("Failed to check rate limits:", rateLimitError);
+      // Continue anyway
     }
 
-    // The most accurate method is to just use our manual counting function
-    // which uses the same filtering logic as the actual processing
+    // If signal aborted, exit early
+    if (options?.signal?.aborted) {
+      throw new Error("Operation aborted");
+    }
+
     console.log(`Counting files for ${githubUrl} on branch ${branch}`);
     const fileCount = await getFileCount(
       "",
@@ -255,13 +298,20 @@ export const checkCredits = async (
       githubRepo,
       branch,
       0,
+      options?.signal,
     );
 
     console.log(`Found ${fileCount} processable files in the repository`);
     return fileCount;
-  } catch (error) {
+  } catch (error: unknown) {
+    // Check for abort signal errors
+    if (isAbortOrTimeoutError(error, options?.signal)) {
+      throw new Error("Operation aborted");
+    }
+
     console.error("Error checking credits:", error);
-    return 100; // Default estimate if we can't get actual count
+    // Re-throw instead of providing a default
+    throw error;
   }
 };
 
