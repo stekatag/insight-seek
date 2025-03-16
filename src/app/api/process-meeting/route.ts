@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
-import axios from "axios";
+import type { Issue } from "@prisma/client";
 import { z } from "zod";
 
-import { startMeetingTranscription } from "@/lib/assembly";
+import {
+  startMeetingTranscription,
+  type ProcessedSummary,
+} from "@/lib/assembly";
 
 const bodyParser = z.object({
   audio_url: z.string(),
   projectId: z.string(),
   meetingId: z.string(),
 });
-
-// Webrunner base URL from environment variable
-const WEBRUNNER_URL = process.env.WEBRUNNER_URL;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -49,81 +49,13 @@ export async function POST(req: NextRequest) {
 
     console.log(`Transcription started with ID: ${transcriptData.id}`);
 
-    // Instead of polling, trigger a background job with Webrunner
-    try {
-      // Log the full URL for debugging
-      const webrunnerUrl = `${WEBRUNNER_URL}/api/process-meeting-background`;
-      console.log("Triggering Webrunner job at URL:", webrunnerUrl);
-
-      // Make sure we have a valid URL before attempting the request
-      if (!WEBRUNNER_URL) {
-        throw new Error("WEBRUNNER_URL environment variable is not set");
-      }
-
-      const webrunnerResponse = await axios.post(
-        webrunnerUrl,
-        {
-          transcriptId: transcriptData.id,
-          meetingId,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          // Add timeout to prevent hanging requests
-          timeout: 10000,
-        },
-      );
-
-      console.log(
-        "Successfully initiated background processing via Webrunner:",
-        webrunnerResponse.status,
-      );
-    } catch (webrunnerError: any) {
-      // Enhanced error logging
-      console.error("Error triggering Webrunner job:", {
-        message: webrunnerError.message,
-        status: webrunnerError.response?.status,
-        statusText: webrunnerError.response?.statusText,
-        url: `${WEBRUNNER_URL}/api/process-meeting-background`,
-        data: webrunnerError.response?.data,
-      });
-
-      // Try a fallback option if the path might be wrong
-      try {
-        console.log("Trying fallback URL without /api prefix...");
-        const fallbackUrl = `${WEBRUNNER_URL}/process-meeting-background`;
-
-        const fallbackResponse = await axios.post(
-          fallbackUrl,
-          {
-            transcriptId: transcriptData.id,
-            meetingId,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-            timeout: 10000,
-          },
-        );
-
-        console.log("Fallback request succeeded:", fallbackResponse.status);
-      } catch (fallbackError: any) {
-        console.error("Fallback request also failed:", {
-          message: fallbackError.message,
-          status: fallbackError.response?.status,
-          url: `${WEBRUNNER_URL}/process-meeting-background`,
-        });
-
-        // Even with both failures, we continue execution
-      }
-    }
+    // Start a background process to poll for completion
+    void pollTranscriptionStatus(transcriptData.id, meetingId);
 
     return NextResponse.json(
       {
         meetingId,
-        transcriptId: transcriptData.id,
+        transcriptionId: transcriptData.id,
         status: "processing",
       },
       { status: 202 },
@@ -142,5 +74,144 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 },
     );
+  }
+}
+
+// This function will run in the background to poll for completion
+async function pollTranscriptionStatus(
+  transcriptId: string,
+  meetingId: string,
+) {
+  const { checkTranscriptionStatus, processCompletedTranscript } = await import(
+    "@/lib/assembly"
+  );
+  const { generateEmbedding } = await import("@/lib/gemini");
+  const { RecursiveCharacterTextSplitter } = await import(
+    "@langchain/textsplitters"
+  );
+  const pLimit = (await import("p-limit")).default;
+
+  let isCompleted = false;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 60; // 30 minutes (checking every 30 seconds)
+
+  try {
+    while (!isCompleted && attempts < MAX_ATTEMPTS) {
+      attempts++;
+      console.log(`Polling attempt ${attempts} for transcript ${transcriptId}`);
+
+      // Wait 30 seconds between checks
+      await new Promise((resolve) => setTimeout(resolve, 30000));
+
+      // Check transcription status
+      const status = await checkTranscriptionStatus(transcriptId);
+
+      if (status.status === "completed") {
+        console.log(
+          `Transcription ${transcriptId} completed, processing results`,
+        );
+        isCompleted = true;
+
+        // Process the completed transcript with proper typing
+        const { text, summaries } = await processCompletedTranscript(status);
+
+        const splitter = new RecursiveCharacterTextSplitter({
+          chunkSize: 800,
+          chunkOverlap: 130,
+        });
+
+        // Create documents from the transcript
+        const docs = await splitter.createDocuments([text]);
+        console.log(`Created ${docs.length} document chunks`);
+
+        // Get the embeddings
+        const embeddings = await Promise.all(
+          docs.map(async (doc, index) => {
+            console.log(
+              `Generating embedding for chunk ${index + 1}/${docs.length}`,
+            );
+            const embedding = await generateEmbedding(doc.pageContent);
+            return { embedding, content: doc.pageContent };
+          }),
+        );
+
+        const limit = pLimit(10);
+
+        console.log("Saving embeddings to database");
+        // Save the embeddings
+        await Promise.all(
+          embeddings.map(async (embedding, index) => {
+            return limit(async () => {
+              console.log(`Saving embedding ${index + 1}/${embeddings.length}`);
+              const meetingEmbedding = await db.meetingEmbedding.create({
+                data: {
+                  meetingId,
+                  content: embedding.content,
+                },
+              });
+
+              await db.$executeRaw`
+              UPDATE "MeetingEmbedding"
+              SET "embedding" = ${embedding.embedding}::vector
+              WHERE id = ${meetingEmbedding.id}`;
+            });
+          }),
+        );
+
+        // Save issues/summaries with proper typing
+        if (summaries.length > 0) {
+          console.log(`Saving ${summaries.length} summary items`);
+
+          // Create array of Issue objects that match the Prisma schema
+          const issueData: Omit<Issue, "id" | "createdAt" | "updatedAt">[] =
+            summaries.map((summary: ProcessedSummary) => ({
+              start: summary.start,
+              end: summary.end,
+              gist: summary.gist,
+              headline: summary.headline,
+              summary: summary.summary,
+              meetingId,
+            }));
+
+          await db.issue.createMany({
+            data: issueData,
+          });
+        }
+
+        // Update meeting status to completed
+        console.log("Updating meeting status to COMPLETED");
+        await db.meeting.update({
+          where: { id: meetingId },
+          data: {
+            status: "COMPLETED",
+            name: summaries[0]?.gist || "Untitled Meeting",
+          },
+        });
+
+        console.log("Processing completed successfully");
+      } else {
+        console.log(`Transcript status: ${status.status}, continuing to poll`);
+      }
+    }
+
+    if (!isCompleted) {
+      console.log(`Polling timed out after ${attempts} attempts`);
+      await db.meeting.update({
+        where: { id: meetingId },
+        data: { status: "ERROR" },
+      });
+    }
+  } catch (error) {
+    console.error("Error in polling:", error);
+
+    // Update meeting status to ERROR
+    try {
+      await db.meeting.update({
+        where: { id: meetingId },
+        data: { status: "ERROR" },
+      });
+    } catch (updateError) {
+      console.error("Failed to update meeting status:", updateError);
+    }
   }
 }

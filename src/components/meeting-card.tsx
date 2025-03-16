@@ -48,6 +48,11 @@ import {
 
 import { Spinner } from "./ui/spinner";
 
+const apiUrl =
+  process.env.NODE_ENV === "production"
+    ? `${process.env.NEXT_PUBLIC_WEBRUNNER_URL}/api/process-meeting`
+    : "/api/process-meeting";
+
 export default function MeetingCard() {
   const { project } = useProject();
   const router = useRouter();
@@ -71,11 +76,15 @@ export default function MeetingCard() {
       projectId: string;
     }) => {
       const { meetingUrl, meetingId, projectId } = data;
-      const response = await axios.post("/api/process-meeting", {
+
+      console.log(`Using API endpoint: ${apiUrl} for meeting processing`);
+
+      const response = await axios.post(apiUrl, {
         audio_url: meetingUrl,
         meetingId,
         projectId,
       });
+
       return response.data;
     },
   });
