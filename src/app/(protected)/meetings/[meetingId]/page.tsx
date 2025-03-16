@@ -1,30 +1,143 @@
 "use client";
 
+import { Suspense, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Clock, Loader2 } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import { readStreamableValue } from "ai/rsc";
+import { AlertTriangle, ArrowLeft, Clock } from "lucide-react";
+import { toast } from "sonner";
 
+import { adaptDatabaseQuestions, Chat } from "@/types/chat";
 import { api } from "@/trpc/react";
 import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import AskQuestionCard from "@/components/chat/ask-question-card";
+import { ChatProvider, useChatContext } from "@/components/chat/chat-context";
+import ChatDialog from "@/components/chat/chat-dialog";
+import ChatList from "@/components/chat/chat-list";
 
+import { askMeeting } from "../action";
 import IssuesList from "./components/issues-list";
 
-export default function MeetingDetailPage() {
+// Content component using search params
+function MeetingDetailContent() {
   const params = useParams();
-  const refetech = useRefetch();
+  const searchParams = useSearchParams();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const refetch = useRefetch();
+
+  // Ensure meetingId is properly extracted as a string
   const meetingId = params.meetingId as string;
 
+  // Use context instead of Zustand
+  const { state, openDialog, addFollowUpOptimistically } = useChatContext();
+
+  // Fetch meeting data
   const {
     data: meeting,
-    isLoading,
-    error,
-  } = api.meeting.getMeetingById.useQuery({ meetingId });
+    isLoading: meetingLoading,
+    error: meetingError,
+  } = api.meeting.getMeetingById.useQuery(
+    { meetingId },
+    {
+      enabled: !!meetingId,
+      retry: 1,
+    },
+  );
 
-  // Handle loading state
-  if (isLoading) {
+  // Fetch chats for this meeting
+  const { data: chats, isLoading: chatsLoading } =
+    api.meetingChat.getMeetingChats.useQuery(
+      { meetingId },
+      {
+        enabled: !!meetingId,
+        staleTime: 0,
+      },
+    );
+
+  const createMeetingChat = api.meetingChat.createMeetingChat.useMutation();
+  const addFollowupQuestion = api.meetingChat.addFollowupQuestion.useMutation();
+  const apiUtils = api.useUtils();
+
+  // Check for chat ID in URL on initial load
+  useEffect(() => {
+    if (!chats || chatsLoading) return;
+
+    const chatId = searchParams.get("chat");
+    if (chatId) {
+      const chat = chats.find((c) => c.id === chatId);
+      if (chat) {
+        // Open dialog with content ready to display - now with proper typing
+        const chatToOpen: Chat = {
+          ...chat,
+          questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+            ...q,
+            answerLoading: false,
+          })),
+        };
+        openDialog(chatToOpen);
+      }
+    }
+  }, [chats, chatsLoading, searchParams, openDialog]);
+
+  // The followup submission handler with optimistic updates
+  const submitFollowUpQuestion = useCallback(
+    async (question: string) => {
+      if (!meetingId || !question.trim()) return;
+
+      try {
+        const { activeChat } = state;
+        if (!activeChat) return;
+
+        // Add optimistic update
+        addFollowUpOptimistically(question, "Getting answer...", []);
+
+        // Get answer from AI
+        const { output } = await askMeeting(
+          question,
+          "", // No specific quote
+          meetingId,
+        );
+
+        // Collect full answer without streaming UI updates
+        let fullAnswer = "";
+        for await (const delta of readStreamableValue(output)) {
+          if (delta) {
+            fullAnswer += delta;
+          }
+        }
+
+        // Update with the complete answer once
+        addFollowUpOptimistically(question, fullAnswer, []);
+
+        // Save to the database
+        await addFollowupQuestion.mutateAsync({
+          chatId: activeChat.id,
+          question,
+          answer: fullAnswer,
+        });
+
+        // Refresh chats data
+        apiUtils.meetingChat.getMeetingChats.invalidate({ meetingId });
+      } catch (error) {
+        console.error("Failed to process follow-up:", error);
+        toast.error("Failed to get answer about the meeting");
+      }
+    },
+    [
+      meetingId,
+      state, // Add missing dependency here
+      addFollowupQuestion,
+      apiUtils.meetingChat.getMeetingChats,
+      addFollowUpOptimistically,
+    ],
+  );
+
+  // Loading state
+  if (meetingLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <Spinner size="large" className="mb-4" />
@@ -33,8 +146,8 @@ export default function MeetingDetailPage() {
     );
   }
 
-  // Handle error state
-  if (error || !meeting) {
+  // Error state
+  if (meetingError || !meeting) {
     return (
       <div className="container max-w-6xl space-y-4 p-4">
         <Link href="/meetings">
@@ -47,7 +160,7 @@ export default function MeetingDetailPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>
-            {error?.message ||
+            {meetingError?.message ||
               "Failed to load meeting data. The meeting may not exist."}
           </AlertDescription>
         </Alert>
@@ -55,8 +168,8 @@ export default function MeetingDetailPage() {
     );
   }
 
-  // Handle processing state - redirect or show processing message
-  if (meeting.status === "PROCESSING") {
+  // Processing state
+  if (meeting?.status === "PROCESSING") {
     return (
       <div className="container max-w-6xl space-y-4 p-4">
         <Link href="/meetings">
@@ -96,7 +209,7 @@ export default function MeetingDetailPage() {
             </p>
             <Button
               variant="outline"
-              onClick={() => refetech()}
+              onClick={() => refetch()}
               className="mt-2"
             >
               Refresh Status
@@ -118,7 +231,89 @@ export default function MeetingDetailPage() {
         </Link>
       </div>
 
-      <IssuesList meetingId={meetingId} />
+      <div className="container max-w-full grid gap-6 md:grid-cols-4">
+        {/* Sidebar with chat history - on the left */}
+        <div className="hidden md:block">
+          <div className="p-4">
+            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+              Conversations
+            </h3>
+            <Separator className="mb-3" />
+            {chatsLoading ? (
+              <div className="flex justify-center py-4">
+                <Spinner size="small" />
+              </div>
+            ) : (
+              <ChatList chats={chats || []} variant="sidebar" />
+            )}
+          </div>
+        </div>
+
+        {/* Main content area - on the right */}
+        <div className="md:col-span-3">
+          {/* Ask Meeting Card - using the reusable component */}
+          <div className="mb-8">
+            <AskQuestionCard
+              context="meeting"
+              contextId={meetingId}
+              askAction={askMeeting}
+              createChatMutation={async (data) => {
+                return createMeetingChat.mutateAsync({
+                  meetingId: data.meetingId,
+                  projectId: meeting?.projectId || "",
+                  question: data.question,
+                  answer: data.answer,
+                });
+              }}
+              invalidateQueries={async () => {
+                return apiUtils.meetingChat.getMeetingChats.invalidate({
+                  meetingId,
+                });
+              }}
+            />
+          </div>
+
+          {/* Meeting Issues Section */}
+          <div className="mt-6">
+            <Separator className="my-6" />
+            <h2 className="text-2xl font-bold mb-6">Meeting Issues</h2>
+            <IssuesList meetingId={meetingId} />
+          </div>
+        </div>
+      </div>
+
+      {/* Chat Dialog - now using the Zustand-based ChatDialog */}
+      <ChatDialog
+        messagesEndRef={messagesEndRef}
+        onFollowUpSubmit={submitFollowUpQuestion}
+      />
     </div>
+  );
+}
+
+// Wrap with ChatProvider
+function MeetingDetailWithProvider() {
+  return (
+    <ChatProvider>
+      <MeetingDetailContent />
+    </ChatProvider>
+  );
+}
+
+// Main export wrapped in Suspense
+export default function MeetingDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center py-16">
+          <Spinner size="large" className="mb-4" />
+          <p className="text-lg text-muted-foreground">
+            Loading meeting data...
+          </p>
+        </div>
+      }
+    >
+      <MeetingDetailWithProvider />
+    </Suspense>
   );
 }

@@ -284,7 +284,7 @@ function IssueCard({
         </Dialog>
       )}
 
-      <Card className="group h-full overflow-hidden transition-all hover:shadow-md">
+      <Card className="group h-full overflow-hidden transition-all hover:shadow-md dark:border-secondary">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <CardTitle className="line-clamp-2 text-xl">{issue.gist}</CardTitle>

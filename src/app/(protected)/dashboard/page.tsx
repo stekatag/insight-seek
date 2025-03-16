@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  FormEvent,
-  Suspense,
-  useCallback,
-  useEffect,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
@@ -16,6 +8,7 @@ import { readStreamableValue } from "ai/rsc";
 import { ExternalLink, FolderKanban, Settings } from "lucide-react";
 import { toast } from "sonner";
 
+import { adaptDatabaseQuestions, Chat } from "@/types/chat";
 import { api } from "@/trpc/react";
 import useProject from "@/hooks/use-project";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,8 +23,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import AskQuestionCard from "@/components/chat/ask-question-card";
+import { ChatProvider, useChatContext } from "@/components/chat/chat-context";
 import ChatDialog from "@/components/chat/chat-dialog";
-import { chatReducer, initialChatState } from "@/components/chat/chat-reducer";
 import GitBranchName from "@/components/git-branch-name";
 import MeetingCard from "@/components/meeting-card";
 import { ProjectSelector } from "@/components/project-selector";
@@ -48,15 +41,13 @@ function DashboardContent() {
   const { project, projectId, isLoading: projectLoading } = useProject();
   const hasProject = !!project;
   const newProjectId = searchParams.get("newProject");
+  const apiUtils = api.useUtils();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Check if we're coming from project creation
-    if (newProjectId) {
-      // Scroll to top of page
-      window.scrollTo(0, 0);
-    }
-  }, [newProjectId]);
+  // Get methods from context
+  const { state, openDialog, addFollowUpOptimistically } = useChatContext();
 
+  // Important: Initialize indexing state first
   const [indexingProject, setIndexingProject] = useState<string | null>(
     newProjectId,
   );
@@ -65,13 +56,6 @@ function DashboardContent() {
     embeddingsCount: number;
     isFullyIndexed: boolean;
   } | null>(null);
-
-  // Simplify state by using a reducer like in AskQuestionCard
-  const [chatState, chatDispatch] = useReducer(chatReducer, initialChatState);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Get utils at component level
-  const apiUtils = api.useUtils();
 
   // Fetch chats for the current project
   const { data: chats, isLoading } = api.qa.getChats.useQuery(
@@ -82,10 +66,37 @@ function DashboardContent() {
     },
   );
 
+  // Check for chat ID in URL on initial load
+  useEffect(() => {
+    if (!chats || isLoading) return;
+
+    const chatId = searchParams.get("chat");
+    if (chatId) {
+      const chat = chats.find((c) => c.id === chatId);
+      if (chat) {
+        // Open dialog with content ready to display - now with proper typing
+        const chatToOpen: Chat = {
+          ...chat,
+          questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+            ...q,
+            answerLoading: false,
+          })),
+        };
+        openDialog(chatToOpen);
+      }
+    }
+  }, [chats, isLoading, searchParams, openDialog]);
+
+  // Initialize addFollowupQuestion mutation
   const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
-  const [activeChatIndex, setActiveChatIndex] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const activeChat = chats?.[activeChatIndex];
+  const createChat = api.qa.createChat.useMutation();
+
+  // Scroll to top if coming from project creation
+  useEffect(() => {
+    if (newProjectId) {
+      window.scrollTo(0, 0);
+    }
+  }, [newProjectId]);
 
   // Fetch indexing status if we have a new project
   useEffect(() => {
@@ -136,110 +147,59 @@ function DashboardContent() {
     return () => clearInterval(interval);
   }, [indexingProject, router]);
 
-  // Check for chat in URL
-  useEffect(() => {
-    if (!chats || chats.length === 0 || isLoading) return;
-
-    const chatId = searchParams.get("chat");
-    if (!chatId) return;
-
-    // Find the chat with the matching ID
-    const chatIndex = chats.findIndex((chat) => chat.id === chatId);
-    if (chatIndex !== -1) {
-      setActiveChatIndex(chatIndex);
-      setIsOpen(true);
-      // Reset streaming states
-      chatDispatch({ type: "SET_STREAM_CONTENT", payload: "" });
-      chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
-    }
-  }, [chats, isLoading, searchParams]);
-
-  // Handle follow-up question change
-  const handleFollowUpChange = useCallback((value: string) => {
-    chatDispatch({ type: "SET_FOLLOW_UP", payload: value });
-  }, []);
-
-  // Handle follow-up question submission
-  const handleFollowUpSubmit = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault();
-
-      const { followUpQuestion, isStreaming } = chatState;
-
-      if (
-        !followUpQuestion.trim() ||
-        isStreaming ||
-        !activeChat ||
-        !project?.id
-      )
-        return;
-
-      // Set streaming state immediately
-      chatDispatch({ type: "START_FOLLOW_UP_STREAMING" });
+  // The followup submission handler specific to Dashboard page
+  const submitFollowUpQuestion = useCallback(
+    async (question: string) => {
+      if (!project?.id || !question.trim()) return;
 
       try {
-        // Get answer from AI
+        const { activeChat } = state;
+        if (!activeChat) return;
+
+        // Add optimistic update
+        addFollowUpOptimistically(question, "Getting answer...", []);
+
+        // Get complete answer without streaming updates
         const { output, filesReferences } = await askQuestion(
-          followUpQuestion,
+          question,
           project.id,
         );
 
-        // Stream the answer in real-time
+        // Collect full answer
         let fullAnswer = "";
         for await (const delta of readStreamableValue(output)) {
           if (delta) {
             fullAnswer += delta;
-            chatDispatch({ type: "SET_STREAM_CONTENT", payload: fullAnswer });
           }
         }
 
-        // Save the follow-up question to the chat
+        // Update UI once with the complete answer
+        addFollowUpOptimistically(question, fullAnswer, filesReferences);
+
+        // Save to database
         await addFollowupQuestion.mutateAsync({
           chatId: activeChat.id,
-          question: followUpQuestion,
+          question,
           answer: fullAnswer,
           filesReferences,
         });
 
-        // Reset states
-        chatDispatch({ type: "STOP_STREAMING" });
-        chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
-
-        // Refresh the chats data
+        // Refresh data
         await apiUtils.qa.getChats.invalidate({ projectId });
       } catch (error) {
         console.error("Failed to process follow-up:", error);
         toast.error("Failed to get answer to follow-up question");
-        chatDispatch({ type: "STOP_STREAMING" });
       }
     },
     [
-      chatState,
       project?.id,
-      activeChat,
+      state, // Add missing dependency here
       addFollowupQuestion,
-      apiUtils,
+      apiUtils.qa.getChats,
       projectId,
+      addFollowUpOptimistically,
     ],
   );
-
-  // Handle dialog close
-  const handleSetIsOpen = (newOpenState: boolean) => {
-    setIsOpen(newOpenState);
-
-    if (!newOpenState) {
-      // Clean up URL when closing the dialog
-      const url = new URL(window.location.href);
-      if (url.searchParams.has("chat")) {
-        url.searchParams.delete("chat");
-        router.replace(url.pathname + url.search, { scroll: false });
-      }
-
-      // Reset all streaming and dialog states
-      chatDispatch({ type: "STOP_STREAMING" });
-      chatDispatch({ type: "SET_FOLLOW_UP", payload: "" });
-    }
-  };
 
   // Show loading state
   if (projectLoading || isLoading) {
@@ -267,16 +227,8 @@ function DashboardContent() {
       )}
 
       <ChatDialog
-        key={`chat-${activeChat?.id || "no-chat"}-${chatState.isStreaming ? "streaming" : "idle"}`}
-        isOpen={isOpen && !!activeChat}
-        setIsOpen={handleSetIsOpen}
-        activeChat={activeChat}
-        followUpQuestion={chatState.followUpQuestion}
-        isStreaming={chatState.isStreaming}
-        streamContent={chatState.streamContent}
         messagesEndRef={messagesEndRef}
-        onFollowUpChange={handleFollowUpChange}
-        onFollowUpSubmit={handleFollowUpSubmit}
+        onFollowUpSubmit={submitFollowUpQuestion}
       />
 
       {!hasProject ? (
@@ -351,14 +303,45 @@ function DashboardContent() {
           </div>
 
           <div className="grid grid-cols-1 gap-y-4 md:gap-x-4 lg:grid-cols-5">
-            <AskQuestionCard />
-            <MeetingCard />
+            {/* Use the reusable AskQuestionCard component */}
+            <div className="sm:col-span-3">
+              <AskQuestionCard
+                context="project"
+                contextId={projectId}
+                askAction={async (question, quote, contextId) => {
+                  return askQuestion(question, contextId);
+                }}
+                createChatMutation={async (data) => {
+                  return createChat.mutateAsync({
+                    projectId: data.projectId,
+                    question: data.question,
+                    answer: data.answer,
+                    filesReferences: data.filesReferences || [],
+                  });
+                }}
+                invalidateQueries={async () => {
+                  return apiUtils.qa.getChats.invalidate({ projectId });
+                }}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <MeetingCard />
+            </div>
           </div>
 
           <CommitLog />
         </>
       )}
     </div>
+  );
+}
+
+// Wrap with ChatProvider
+function DashboardContentWithProvider() {
+  return (
+    <ChatProvider>
+      <DashboardContent />
+    </ChatProvider>
   );
 }
 
@@ -372,7 +355,7 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <DashboardContent />
+      <DashboardContentWithProvider />
     </Suspense>
   );
 }

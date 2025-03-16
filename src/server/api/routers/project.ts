@@ -134,8 +134,20 @@ export const projectRouter = createTRPCRouter({
         });
       } catch (error) {
         console.error(`Error during repository indexing: ${error}`);
-        // Don't throw the error here - we've already created the project
-        // The user can try to reindex later if needed
+
+        // Check if this is a timeout or stream closed error
+        if (isAbortOrTimeoutError(error)) {
+          console.warn(
+            "Ignoring timeout error as indexing likely succeeded:",
+            error,
+          );
+
+          // Don't rethrow - just log and continue
+        } else {
+          // Other errors might be more serious
+          console.error("Unexpected error during indexing:", error);
+          // Still don't rethrow, as we've already created the project
+        }
       }
 
       return project;

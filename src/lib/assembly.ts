@@ -92,6 +92,7 @@ export async function processCompletedTranscript(transcriptData: any): Promise<{
   text: string;
   summaries: ProcessedSummary[];
 }> {
+  // Extract chapters/summaries with proper typing
   const summaries: ProcessedSummary[] =
     transcriptData.chapters?.map((chapter: AssemblyAIChapter) => ({
       start: msToTime(chapter.start),
@@ -101,8 +102,30 @@ export async function processCompletedTranscript(transcriptData: any): Promise<{
       summary: chapter.summary || "",
     })) || [];
 
+  // Process the full transcript text, preserving all content
+  let text = transcriptData.text || "";
+
+  // If we have utterances with speakers, enhance the text with speaker information
+  if (transcriptData.utterances && transcriptData.utterances.length > 0) {
+    // Build an enhanced transcript with speaker labels
+    const enhancedTranscript = transcriptData.utterances
+      .map((utterance: any) => {
+        const speaker = utterance.speaker
+          ? `Speaker ${utterance.speaker}: `
+          : "";
+        const timestamp = `[${msToTime(utterance.start)}] `;
+        return timestamp + speaker + utterance.text;
+      })
+      .join("\n\n");
+
+    // Use the enhanced transcript if it's longer than the plain text
+    if (enhancedTranscript.length > text.length) {
+      text = enhancedTranscript;
+    }
+  }
+
   return {
-    text: transcriptData.text || "",
+    text,
     summaries,
   };
 }

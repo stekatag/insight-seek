@@ -1,10 +1,12 @@
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
-import { projectRouter } from "./routers/project";
+
 import { commitRouter } from "./routers/commit";
 import { meetingRouter } from "./routers/meeting";
+import { meetingChatRouter } from "./routers/meeting-chat";
+import { projectRouter } from "./routers/project";
 import { qaRouter } from "./routers/qa";
-import { userRouter } from "./routers/user";
 import { searchRouter } from "./routers/search";
+import { userRouter } from "./routers/user";
 
 /**
  * This is the primary router for your server.
@@ -18,6 +20,7 @@ export const appRouter = createTRPCRouter({
   qa: qaRouter,
   user: userRouter,
   search: searchRouter,
+  meetingChat: meetingChatRouter,
 });
 
 // export type definition of API

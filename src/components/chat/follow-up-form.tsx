@@ -1,87 +1,29 @@
-import { FormEvent, useCallback, useEffect, useRef } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-interface FollowUpFormProps {
-  followUpQuestion: string;
-  isStreaming: boolean;
-  onFollowUpChange: (value: string) => void;
-  onFollowUpSubmit: (e: FormEvent) => Promise<void>;
+export interface FollowUpFormProps {
+  isProcessing: boolean;
+  onSubmit: (question: string) => void;
 }
 
 export default function FollowUpForm({
-  followUpQuestion,
-  isStreaming,
-  onFollowUpChange,
-  onFollowUpSubmit,
+  isProcessing,
+  onSubmit,
 }: FollowUpFormProps) {
-  // Keep refs for DOM access
+  const [question, setQuestion] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isStreamingRef = useRef(isStreaming);
 
-  // Keep the ref in sync with the prop
-  useEffect(() => {
-    isStreamingRef.current = isStreaming;
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!question.trim() || isProcessing) return;
 
-    // Force the disabled state - extra safety for edge cases
-    if (textareaRef.current) {
-      if (isStreaming) {
-        textareaRef.current.setAttribute("disabled", "true");
-      } else {
-        textareaRef.current.removeAttribute("disabled");
-      }
-    }
-  }, [isStreaming]);
-
-  // Log streaming state for debugging
-  useEffect(() => {
-    console.log("FollowUpForm isStreaming:", isStreaming);
-  }, [isStreaming]);
-
-  // Optimize the on change handler using useCallback
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      // Don't process changes during streaming
-      if (isStreamingRef.current) return;
-
-      // Use event.target.value directly to prevent unnecessary re-renders
-      onFollowUpChange(e.target.value);
-    },
-    [onFollowUpChange],
-  );
-
-  // Optimize key down handler with useCallback
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Don't process if streaming is happening
-      if (isStreamingRef.current) return;
-
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (followUpQuestion.trim()) {
-          onFollowUpSubmit(e as unknown as FormEvent);
-        }
-      }
-    },
-    [followUpQuestion, onFollowUpSubmit],
-  );
-
-  // Handle form submission with more checks
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-
-      // Extra check to prevent submission during streaming
-      if (isStreamingRef.current || !followUpQuestion.trim()) {
-        return;
-      }
-
-      onFollowUpSubmit(e as FormEvent);
-    },
-    [followUpQuestion, onFollowUpSubmit],
-  );
+    // Pass the question to parent and clear input
+    onSubmit(question);
+    setQuestion("");
+  };
 
   return (
     <form onSubmit={handleSubmit} className="w-full px-3 pb-2">
@@ -89,29 +31,32 @@ export default function FollowUpForm({
         <Textarea
           ref={textareaRef}
           placeholder={
-            isStreaming
+            isProcessing
               ? "Processing question..."
               : "Ask a follow-up question..."
           }
-          value={followUpQuestion}
-          disabled={isStreaming}
-          onChange={handleInputChange}
-          className={`min-h-[60px] resize-none pr-12 py-3 rounded-full ${
-            isStreaming ? "opacity-70 bg-muted" : ""
-          }`}
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          disabled={isProcessing}
+          className={`min-h-[60px] resize-none pr-12 py-3 rounded-full ${isProcessing ? "opacity-70 bg-muted" : ""}`}
           rows={1}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !isProcessing) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
           required
-          data-state={isStreaming ? "streaming" : "idle"}
+          data-state={isProcessing ? "streaming" : "idle"}
         />
         <Button
           type="submit"
-          disabled={!followUpQuestion.trim() || isStreaming}
+          disabled={!question.trim() || isProcessing}
           className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full p-0 text-primary-foreground"
           variant="default"
-          data-state={isStreaming ? "streaming" : "idle"}
+          data-state={isProcessing ? "streaming" : "idle"}
         >
-          {isStreaming ? (
+          {isProcessing ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
           ) : (
             <Send className="h-4 w-4" />

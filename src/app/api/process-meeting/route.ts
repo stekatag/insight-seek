@@ -115,34 +115,70 @@ async function pollTranscriptionStatus(
         // Process the completed transcript with proper typing
         const { text, summaries } = await processCompletedTranscript(status);
 
+        // Create a more effective text splitter with optimal parameters
         const splitter = new RecursiveCharacterTextSplitter({
-          chunkSize: 800,
-          chunkOverlap: 130,
+          chunkSize: 950, // Slightly larger chunks for more context
+          chunkOverlap: 180, // More overlap to maintain context between chunks
         });
 
         // Create documents from the transcript
         const docs = await splitter.createDocuments([text]);
         console.log(`Created ${docs.length} document chunks`);
 
-        // Get the embeddings
+        // Get the embeddings with retries for robustness
         const embeddings = await Promise.all(
           docs.map(async (doc, index) => {
             console.log(
               `Generating embedding for chunk ${index + 1}/${docs.length}`,
             );
-            const embedding = await generateEmbedding(doc.pageContent);
-            return { embedding, content: doc.pageContent };
+
+            try {
+              const embedding = await generateEmbedding(doc.pageContent);
+              return { embedding, content: doc.pageContent };
+            } catch (err) {
+              console.error(
+                `Error generating embedding for chunk ${index + 1}:`,
+                err,
+              );
+
+              // Retry once with a smaller chunk if needed
+              if (doc.pageContent.length > 500) {
+                const shortenedContent = doc.pageContent.substring(0, 500);
+                try {
+                  console.log(
+                    `Retrying with shortened content for chunk ${index + 1}`,
+                  );
+                  const embedding = await generateEmbedding(shortenedContent);
+                  return { embedding, content: shortenedContent };
+                } catch (retryErr) {
+                  console.error(
+                    `Retry failed for chunk ${index + 1}:`,
+                    retryErr,
+                  );
+                  return null;
+                }
+              }
+              return null;
+            }
           }),
         );
 
+        // Filter out failed embeddings
+        const validEmbeddings = embeddings.filter((item) => item !== null);
+
         const limit = pLimit(5);
 
-        console.log("Saving embeddings to database");
+        console.log(
+          `Saving ${validEmbeddings.length} valid embeddings to database`,
+        );
+
         // Save the embeddings
         await Promise.all(
-          embeddings.map(async (embedding, index) => {
+          validEmbeddings.map(async (embedding, index) => {
             return limit(async () => {
-              console.log(`Saving embedding ${index + 1}/${embeddings.length}`);
+              console.log(
+                `Saving embedding ${index + 1}/${validEmbeddings.length}`,
+              );
               const meetingEmbedding = await db.meetingEmbedding.create({
                 data: {
                   meetingId,

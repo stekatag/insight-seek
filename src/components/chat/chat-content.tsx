@@ -1,27 +1,23 @@
-import { Fragment, memo, RefObject, useEffect } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Bot, User } from "lucide-react";
 
+import { Chat, ChatQuestion } from "@/types/chat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CodeReferences from "@/components/code-references";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
-interface ChatContentProps {
-  chat: any; // Replace with proper type when available
-  streamContent: string;
-  messagesEndRef: RefObject<HTMLDivElement | null>;
-}
-
-// Message component for better performance through memoization
-const Message = memo(({ question }: { question: any }) => {
-  const isLoading = question.answer === "Getting answer...";
+// Question item component to prevent unnecessary re-renders
+const ChatQuestionItem = memo(({ qa }: { qa: ChatQuestion }) => {
+  const isLoading =
+    qa.answer === "Getting answer..." || qa.answerLoading === true;
 
   return (
-    <Fragment>
+    <div className="space-y-4">
       {/* User Question */}
       <div className="flex justify-end gap-3">
         <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
-          <p>{question.question}</p>
+          <p>{qa.question}</p>
         </div>
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
           <User className="h-4 w-4 text-primary-foreground" />
@@ -34,7 +30,7 @@ const Message = memo(({ question }: { question: any }) => {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
             <Bot className="h-4 w-4 text-primary" />
           </div>
-          <div className="max-w-[85%] rounded-lg  bg-card p-4 overflow-hidden shadow border">
+          <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow border">
             {isLoading ? (
               <div className="flex items-center gap-2">
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
@@ -42,95 +38,99 @@ const Message = memo(({ question }: { question: any }) => {
               </div>
             ) : (
               <div className="overflow-auto">
-                <MarkdownRenderer content={question.answer} />
+                <MarkdownRenderer content={qa.answer} />
               </div>
             )}
           </div>
         </div>
 
-        {/* Code References - Only show if not loading and references exist */}
-        {!isLoading &&
-          question.filesReferences &&
-          question.filesReferences.length > 0 && (
-            <div className="ml-11 w-[85%]">
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Code References</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <CodeReferences filesReferences={question.filesReferences} />
-                </CardContent>
-              </Card>
-            </div>
-          )}
+        {/* Code References - only render if needed */}
+        {qa.filesReferences && qa.filesReferences.length > 0 && !isLoading && (
+          <div className="ml-11 w-[85%]">
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Code References</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <CodeReferences filesReferences={qa.filesReferences} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
-    </Fragment>
+    </div>
   );
 });
 
-Message.displayName = "Message";
+// Add display name to fix the error
+ChatQuestionItem.displayName = "ChatQuestionItem";
 
-// ChatContent component with better null checks
-const ChatContent = memo(function ChatContent({
+// Main content component with significant performance optimizations
+function ChatContent({
   chat,
-  streamContent,
   messagesEndRef,
-}: ChatContentProps) {
-  // Add null checking for chat and chat.questions
-  const hasQuestions =
-    chat && Array.isArray(chat.questions) && chat.questions.length > 0;
+  streamQuestion = "",
+  streamProcessing = false,
+}: {
+  chat: Chat;
+  // Update type to allow null refs
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  streamQuestion?: string;
+  streamProcessing?: boolean;
+}) {
+  // Use a ref to avoid re-renders on scrolling
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom whenever content changes
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chat, streamContent, messagesEndRef]);
+  }, [chat?.questions?.length, streamQuestion, messagesEndRef]);
 
-  // Debug chat structure
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      if (chat) {
-        console.log("Chat structure:", {
-          id: chat.id,
-          title: chat.title,
-          questionCount: chat.questions?.length || 0,
-        });
-      }
-    }
-  }, [chat]);
+  // Early exit if no chat data
+  if (!chat || !Array.isArray(chat.questions)) {
+    return null;
+  }
+
+  // Check if the stream question is already in chat (prevents duplicates)
+  const hasMatchingQuestion =
+    streamProcessing && streamQuestion
+      ? chat.questions.some((q) => q.question === streamQuestion)
+      : false;
 
   return (
     <ScrollArea className="h-full px-4">
-      <div className="space-y-6 py-6">
-        {/* Show a debugging message if questions array is empty but we have a chat */}
-        {chat && (!chat.questions || chat.questions.length === 0) && (
-          <div className="text-muted-foreground text-center py-4">
-            {process.env.NODE_ENV === "development" && (
-              <p>Chat exists but has no questions. Chat ID: {chat.id}</p>
-            )}
-          </div>
-        )}
+      <div className="space-y-6 py-6" ref={contentRef}>
+        {/* Map questions with memoized item components */}
+        {chat.questions.map((qa) => (
+          <ChatQuestionItem key={qa.id || `qa-${qa.question}`} qa={qa} />
+        ))}
 
-        {/* Map through questions if they exist */}
-        {hasQuestions &&
-          chat.questions.map((question: any, index: number) => (
-            <Message
-              key={question.id || `q-${index}-${Date.now()}`}
-              question={question}
-            />
-          ))}
-
-        {/* Streaming response */}
-        {streamContent && (
-          <div className="flex flex-col gap-4">
-            <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Bot className="h-4 w-4 text-primary" />
+        {/* Only show processing question if not duplicated */}
+        {streamProcessing && streamQuestion && !hasMatchingQuestion && (
+          <div className="space-y-4">
+            {/* User Question */}
+            <div className="flex justify-end gap-3">
+              <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
+                <p>{streamQuestion}</p>
               </div>
-              <div className="max-w-[85%] rounded-lg bg-muted p-4 overflow-hidden">
-                <div className="overflow-auto">
-                  <MarkdownRenderer content={streamContent} />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
+                <User className="h-4 w-4 text-primary-foreground" />
+              </div>
+            </div>
+
+            {/* AI Answer Loading */}
+            <div className="flex flex-col gap-4">
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Bot className="h-4 w-4 text-primary" />
+                </div>
+                <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow border">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                    <span>Getting answer...</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -142,6 +142,9 @@ const ChatContent = memo(function ChatContent({
       </div>
     </ScrollArea>
   );
-});
+}
 
-export default ChatContent;
+// Export memoized version with display name to prevent unnecessary renders
+const MemoizedChatContent = memo(ChatContent);
+MemoizedChatContent.displayName = "ChatContent";
+export default MemoizedChatContent;

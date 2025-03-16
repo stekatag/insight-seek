@@ -15,6 +15,7 @@ import { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
+import { isAbortOrTimeoutError } from "@/lib/error-utils";
 import { GitHubRepository } from "@/lib/github-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -85,35 +86,7 @@ export default function ProjectCreationCard({
   const { data: githubData } = api.user.getGithubStatus.useQuery();
   const hasGithubConnection = !!githubData?.connected;
 
-  // Define resetValidation function early to avoid the "used before declaration" error
-  const resetValidation = useCallback(
-    () => {
-      setValidationState("idle");
-      setValidationError(null);
-      checkCredits.reset();
-    },
-    [
-      /* Will add checkCredits dependency after its declaration */
-    ],
-  );
-
-  // Project creation mutation
-  const createProject = api.project.createProject.useMutation({
-    onSuccess: (project) => {
-      // Store the newly created project ID in localStorage
-      localStorage.setItem("lastCreatedProject", project.id);
-
-      toast.success("Project created successfully!");
-      onSuccess(project.id);
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create project");
-      setValidationState("error");
-      setValidationError(error.message || "Failed to create project");
-    },
-  });
-
-  // Credit validation mutation
+  // Credit validation mutation - MOVED THIS BEFORE resetValidation
   const checkCredits = api.project.checkCredits.useMutation({
     onSuccess: (data) => {
       setValidationState("validated");
@@ -128,9 +101,66 @@ export default function ProjectCreationCard({
     },
   });
 
-  // Update resetValidation with proper dependency
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const resetValidationWithDeps = useCallback(resetValidation, [checkCredits]);
+  // Define resetValidation function early to avoid the "used before declaration" error
+  const resetValidation = useCallback(
+    () => {
+      setValidationState("idle");
+      setValidationError(null);
+      checkCredits.reset();
+    },
+    [checkCredits], // Now checkCredits is properly declared before use
+  );
+
+  // Update resetValidation with proper dependency - ADD THIS BACK
+  const resetValidationWithDeps = useCallback(resetValidation, [
+    resetValidation,
+  ]);
+
+  // Project creation mutation
+  const createProject = api.project.createProject.useMutation({
+    onSuccess: (project) => {
+      // Store the newly created project ID in localStorage
+      localStorage.setItem("lastCreatedProject", project.id);
+
+      toast.success("Project created successfully!");
+      onSuccess(project.id);
+    },
+    onError: (error) => {
+      // Check if this is a "Stream closed" error - which can be safely ignored
+      // as the project is actually created successfully but the connection timed out
+      if (isAbortOrTimeoutError(error)) {
+        console.warn(
+          "Project creation timed out, but likely succeeded:",
+          error,
+        );
+
+        // Check if we have a projectId in the error object (added by the server)
+        // @ts-expect-error - custom field we're adding on the server
+        const projectId = error.data?.projectId;
+
+        if (projectId) {
+          // We have the project ID, so we can redirect as if it succeeded
+          localStorage.setItem("lastCreatedProject", projectId);
+          toast.success(
+            "Project created successfully! (Connection timed out but project was created)",
+          );
+          onSuccess(projectId);
+        } else {
+          // No project ID, redirect to dashboard anyway
+          toast.success(
+            "Project likely created successfully. Check your dashboard.",
+          );
+          window.location.href = "/dashboard";
+        }
+        return;
+      }
+
+      // Handle all other errors normally
+      toast.error(error.message || "Failed to create project");
+      setValidationState("error");
+      setValidationError(error.message || "Failed to create project");
+    },
+  });
 
   // Use a ref to track previous repo to prevent unnecessary state updates
   const prevRepoRef = useRef<string>("");

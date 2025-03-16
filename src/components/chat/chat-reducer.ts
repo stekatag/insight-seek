@@ -1,24 +1,5 @@
-// Define types for better clarity
-export interface FileReference {
-  fileName: string;
-  sourceCode: string;
-  summary: string;
-  projectId?: string;
-  similarity?: number;
-}
-
-export interface ChatQuestion {
-  id: string;
-  question: string;
-  answer: string;
-  filesReferences?: FileReference[];
-}
-
-export interface Chat {
-  id: string;
-  title: string;
-  questions: ChatQuestion[];
-}
+// Import shared types
+import { Chat, FileReference } from "@/types/chat";
 
 // Define possible chat states for better state management
 export type ChatState = {
@@ -26,6 +7,7 @@ export type ChatState = {
   status: "idle" | "loading" | "streaming" | "saving" | "complete" | "error";
   tempChat: Chat | null;
   savedChat: Chat | null;
+  activeChat: Chat | null;
 
   // Input management
   question: string;
@@ -39,7 +21,9 @@ export type ChatState = {
   // UI state
   error: string | null;
   isDialogOpen: boolean;
-  isStreaming: boolean; // <-- Critical for controlling input state
+  isStreaming: boolean;
+  isTempChat: boolean;
+  urlUpdating: boolean;
 };
 
 export type ChatAction =
@@ -48,8 +32,11 @@ export type ChatAction =
   | { type: "SET_FOLLOW_UP"; payload: string }
 
   // Dialog state
-  | { type: "SET_DIALOG_OPEN"; payload: boolean }
+  | { type: "OPEN_DIALOG"; payload: { chat: Chat; isTemp?: boolean } }
+  | { type: "CLOSE_DIALOG" }
+  | { type: "UPDATE_CHAT"; payload: Chat }
   | { type: "RESET" }
+  | { type: "SET_URL_UPDATING"; payload: boolean }
 
   // Initial QA flow
   | { type: "START_LOADING" }
@@ -57,28 +44,35 @@ export type ChatAction =
       type: "STREAM_ANSWER";
       payload: { content: string; filesReferences: FileReference[] };
     }
-  | { type: "COMPLETE_ANSWER"; payload: string }
+  | {
+      type: "COMPLETE_ANSWER";
+      payload: {
+        answer: string;
+        filesReferences: FileReference[];
+      };
+    }
   | { type: "SET_SAVED_CHAT"; payload: Chat }
   | { type: "SET_ERROR"; payload: string }
 
   // Follow-up QA flow
   | { type: "START_FOLLOW_UP_STREAMING" }
   | { type: "SET_STREAM_CONTENT"; payload: string }
+  | { type: "STOP_STREAMING" }
   | {
-      type: "ADD_FOLLOW_UP_ANSWER";
+      type: "ADD_FOLLOW_UP_OPTIMISTICALLY";
       payload: {
         question: string;
         answer: string;
         filesReferences: FileReference[];
       };
-    }
-  | { type: "STOP_STREAMING" };
+    };
 
 // Initial state for chat
 export const initialChatState: ChatState = {
   status: "idle",
   tempChat: null,
   savedChat: null,
+  activeChat: null,
   question: "",
   answer: "",
   followUpQuestion: "",
@@ -87,13 +81,67 @@ export const initialChatState: ChatState = {
   error: null,
   isDialogOpen: false,
   isStreaming: false,
+  isTempChat: false,
+  urlUpdating: false,
 };
 
-// Reducer function to manage all chat-related state
+// Optimized reducer with improved state updates
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "SET_QUESTION":
       return { ...state, question: action.payload };
+
+    case "SET_FOLLOW_UP":
+      return { ...state, followUpQuestion: action.payload };
+
+    case "OPEN_DIALOG": {
+      const { chat, isTemp = false } = action.payload;
+      // Fast path: if already open with same chat, don't update
+      if (state.isDialogOpen && state.activeChat?.id === chat.id) {
+        return state;
+      }
+
+      return {
+        ...state,
+        isDialogOpen: true,
+        activeChat: chat,
+        isTempChat: isTemp,
+        followUpQuestion: "",
+        streamContent: "",
+        isStreaming: false,
+      };
+    }
+
+    case "CLOSE_DIALOG": {
+      // Fast path: if already closed, don't update
+      if (!state.isDialogOpen) return state;
+
+      return {
+        ...state,
+        isDialogOpen: false,
+        activeChat: null,
+        isTempChat: false,
+        followUpQuestion: "",
+        streamContent: "",
+        isStreaming: false,
+      };
+    }
+
+    case "UPDATE_CHAT": {
+      // Fast path: if chat is the same, don't update
+      if (
+        state.activeChat?.id === action.payload.id &&
+        JSON.stringify(state.activeChat) === JSON.stringify(action.payload)
+      ) {
+        return state;
+      }
+
+      return {
+        ...state,
+        activeChat: action.payload,
+        isTempChat: false,
+      };
+    }
 
     case "START_LOADING": {
       const tempChat: Chat = {
@@ -114,6 +162,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         status: "loading",
         tempChat,
         isDialogOpen: true,
+        activeChat: tempChat,
+        isTempChat: true,
         savedChat: null,
         answer: "",
         filesReferences: [],
@@ -123,26 +173,28 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case "STREAM_ANSWER": {
-      // Don't use streamContent field directly here to avoid duplication
-      // Instead, update the temporary chat's answer directly
-      if (!state.tempChat) return state;
+      if (!state.activeChat) return state;
 
-      const updatedTempChat = {
-        ...state.tempChat,
-        questions: [
-          {
-            ...state.tempChat.questions[0],
-            answer: action.payload.content,
-            filesReferences: action.payload.filesReferences,
-          },
-        ],
+      const updatedChat = {
+        ...state.activeChat,
+        questions: state.activeChat.questions.map((q, idx) => {
+          // Update only the first question for initial streaming
+          if (idx === 0 && state.isTempChat) {
+            return {
+              ...q,
+              answer: action.payload.content,
+              filesReferences: action.payload.filesReferences,
+            };
+          }
+          return q;
+        }),
       };
 
       return {
         ...state,
         status: "streaming",
-        // @ts-expect-error: tempChat is updated above
-        tempChat: updatedTempChat,
+        activeChat: updatedChat,
+        tempChat: state.isTempChat ? updatedChat : state.tempChat,
         answer: action.payload.content,
         filesReferences: action.payload.filesReferences,
         isStreaming: true,
@@ -153,7 +205,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...state,
         status: "complete",
-        answer: action.payload,
+        answer: action.payload.answer,
+        filesReferences: action.payload.filesReferences,
         isStreaming: false,
       };
 
@@ -162,7 +215,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         status: "complete",
         savedChat: action.payload,
+        activeChat: action.payload,
         tempChat: null, // Clear temp chat once we have a saved one
+        isTempChat: false,
         isStreaming: false,
       };
 
@@ -173,16 +228,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         error: action.payload,
         isDialogOpen: false,
         tempChat: null,
+        activeChat: null,
         isStreaming: false,
       };
 
-    case "SET_FOLLOW_UP":
-      return {
-        ...state,
-        followUpQuestion: action.payload,
-      };
-
-    // Special actions for follow-up questions
     case "START_FOLLOW_UP_STREAMING":
       return {
         ...state,
@@ -190,7 +239,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         isStreaming: true,
       };
 
-    // Handle streaming content separately for follow-ups
     case "SET_STREAM_CONTENT":
       return {
         ...state,
@@ -205,59 +253,68 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         streamContent: "",
       };
 
-    case "ADD_FOLLOW_UP_ANSWER": {
-      // Handle follow-up answer for either temp or saved chat
-      const activeChat = state.savedChat || state.tempChat;
-      if (!activeChat) return state;
+    case "ADD_FOLLOW_UP_OPTIMISTICALLY": {
+      // Avoid redundant state updates
+      if (!state.activeChat) return state;
 
-      const newQuestion: ChatQuestion = {
+      const { question, answer, filesReferences } = action.payload;
+
+      // Skip if the question is already being answered with the same content
+      const existingQuestion = state.activeChat.questions.find(
+        (q) => q.question === question && q.answer === answer,
+      );
+
+      if (existingQuestion) return state;
+
+      // Create new question object
+      const newQuestion = {
         id: `followup-${Date.now()}`,
-        question: action.payload.question,
-        answer: action.payload.answer,
-        filesReferences: action.payload.filesReferences,
+        question,
+        answer,
+        filesReferences,
       };
 
-      if (state.savedChat) {
-        const updatedSavedChat = {
-          ...state.savedChat,
-          questions: [...state.savedChat.questions, newQuestion],
-        };
+      // Find if question already exists in chat
+      const existingIndex = state.activeChat.questions.findIndex(
+        (q) => q.question === question && q.answer === "Getting answer...",
+      );
 
-        return {
-          ...state,
-          savedChat: updatedSavedChat,
-          followUpQuestion: "",
-          streamContent: "",
-          isStreaming: false,
-        };
-      } else if (state.tempChat) {
-        const updatedTempChat = {
-          ...state.tempChat,
-          questions: [...state.tempChat.questions, newQuestion],
-        };
+      let updatedQuestions;
 
-        return {
-          ...state,
-          tempChat: updatedTempChat,
-          followUpQuestion: "",
-          streamContent: "",
-          isStreaming: false,
-        };
+      if (existingIndex >= 0) {
+        // Update existing question
+        updatedQuestions = [...state.activeChat.questions];
+        updatedQuestions[existingIndex] = newQuestion;
+      } else {
+        // Add new question
+        updatedQuestions = [...state.activeChat.questions, newQuestion];
       }
 
-      return state;
-    }
+      // Create updated chat
+      const updatedChat = {
+        ...state.activeChat,
+        questions: updatedQuestions,
+      };
 
-    case "SET_DIALOG_OPEN":
+      // If answer is still loading, keep streaming true
+      const isAnswerTemp = answer === "Getting answer...";
+
       return {
         ...state,
-        isDialogOpen: action.payload,
-        // Clear these states when dialog closes
-        ...(action.payload === false && {
-          streamContent: "",
-          followUpQuestion: "",
-          isStreaming: false,
-        }),
+        activeChat: updatedChat,
+        // Update the right chat depending on temp status
+        ...(state.isTempChat
+          ? { tempChat: updatedChat }
+          : { savedChat: updatedChat }),
+        isStreaming: isAnswerTemp,
+        ...(isAnswerTemp ? {} : { followUpQuestion: "", streamContent: "" }),
+      };
+    }
+
+    case "SET_URL_UPDATING":
+      return {
+        ...state,
+        urlUpdating: action.payload,
       };
 
     case "RESET":

@@ -184,7 +184,7 @@ export async function askQuestion(input: string, projectId: string) {
         FROM "SourceCodeEmbedding"
         WHERE "projectId" = ${projectId}
         ORDER BY similarity DESC
-        LIMIT 8;
+        LIMIT 10;
       `) as {
         fileName: string;
         sourceCode: string;

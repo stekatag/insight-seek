@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { CollapsibleContent } from "@/components/collapsible-content";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { getLanguageFromFilename } from "@/utils/code-language";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-type FileReference = {
-  fileName: string;
-  sourceCode: string;
-};
+import { FileReference } from "@/types/chat";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { CollapsibleContent } from "@/components/collapsible-content";
 
 type CodeReferencesProps = {
   filesReferences: FileReference[];

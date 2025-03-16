@@ -1,21 +1,17 @@
 "use client";
 
-import {
-  FormEvent,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { readStreamableValue } from "ai/rsc";
 import { toast } from "sonner";
 
+import { adaptDatabaseQuestions, Chat } from "@/types/chat";
 import { api } from "@/trpc/react";
 import useProject from "@/hooks/use-project";
-import useRefetch from "@/hooks/use-refetch";
 import AskQuestionCard from "@/components/chat/ask-question-card";
+import { ChatProvider, useChatContext } from "@/components/chat/chat-context";
+import ChatDialog from "@/components/chat/chat-dialog";
+import ChatList from "@/components/chat/chat-list";
 import {
   NoProjectEmptyState,
   NoQuestionsEmptyState,
@@ -24,22 +20,15 @@ import GitBranchName from "@/components/git-branch-name";
 import { ProjectSelector } from "@/components/project-selector";
 import { askQuestion } from "@/app/(protected)/dashboard/actions";
 
-import ChatDialog from "../../../components/chat/chat-dialog";
-import ChatList from "./components/chat-list";
-
-// Content component that uses useSearchParams - must be wrapped in Suspense
 function QAContent() {
   const { project, projectId } = useProject();
   const hasProject = !!project;
-  const refetch = useRefetch();
-  const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement>(null); // No longer nullable
   const searchParams = useSearchParams();
+  const { state, openDialog, addFollowUpOptimistically } = useChatContext();
 
-  // State for managing follow-up questions
-  const [followUpQuestion, setFollowUpQuestion] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamContent, setStreamContent] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Efficiently store chat lookup with proper typing
+  const chatLookup = useRef<Map<string, Chat>>(new Map());
 
   // Fetch chats for the current project
   const { data: chats, isLoading } = api.qa.getChats.useQuery(
@@ -50,131 +39,133 @@ function QAContent() {
     },
   );
 
-  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
-  const [activeChatIndex, setActiveChatIndex] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const activeChat = chats?.[activeChatIndex];
-
-  // Handle URL parameter to restore chat state on page load/refresh
+  // Update the chat lookup when chats change
   useEffect(() => {
-    if (!chats || chats.length === 0 || isLoading) return;
+    if (!chats) return;
+
+    chatLookup.current.clear();
+    chats.forEach((chat) => {
+      // Convert database chat to Chat type using chatFromDatabase helper
+      const adaptedChat: Chat = {
+        ...chat,
+        questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+          ...q,
+          answerLoading: false,
+        })),
+      };
+      chatLookup.current.set(chat.id, adaptedChat);
+    });
+  }, [chats]);
+
+  // Open chat from URL if needed
+  useEffect(() => {
+    if (!chats || isLoading) return;
 
     const chatId = searchParams.get("chat");
-    if (!chatId) return;
+    if (chatId) {
+      // Use optimized lookup for better performance
+      const chat =
+        chatLookup.current.get(chatId) || chats.find((c) => c.id === chatId);
 
-    // Find the chat with the matching ID
-    const chatIndex = chats.findIndex((chat) => chat.id === chatId);
-    if (chatIndex !== -1) {
-      setActiveChatIndex(chatIndex);
-      setIsOpen(true);
-      // Reset streaming states
-      setStreamContent("");
-      setFollowUpQuestion("");
+      if (chat) {
+        // Ensure dialog opens smoothly with full content - now with proper typing
+        requestAnimationFrame(() => {
+          // Convert database questions to chat-compatible questions
+          const chatToOpen: Chat = {
+            ...chat,
+            questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+              ...q,
+              answerLoading: false,
+            })),
+          };
+          openDialog(chatToOpen);
+        });
+      }
     }
-  }, [chats, isLoading, searchParams]);
+  }, [chats, isLoading, searchParams, openDialog]);
 
-  const handleChatClick = (idx: number) => {
-    setActiveChatIndex(idx);
+  // API mutations
+  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
+  const createChat = api.qa.createChat.useMutation();
+  const apiUtils = api.useUtils();
 
-    // Update URL with chat ID
-    if (chats && chats[idx]) {
-      const url = new URL(window.location.href);
-      url.searchParams.set("chat", chats[idx].id);
-      router.replace(url.pathname + url.search, { scroll: false });
-    }
-
-    setIsOpen(true);
-    // Reset streaming states
-    setStreamContent("");
-    setFollowUpQuestion("");
-  };
-
-  // Handle follow-up question change
-  const handleFollowUpChange = useCallback((value: string) => {
-    setFollowUpQuestion(value);
-  }, []);
-
-  // Handle follow-up question submission
-  const handleFollowUpSubmit = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault();
-
-      if (
-        !followUpQuestion.trim() ||
-        isStreaming ||
-        !activeChat ||
-        !project?.id
-      )
-        return;
-
-      setIsStreaming(true);
+  // Simplified follow-up submission handler without streaming
+  const submitFollowUpQuestion = useCallback(
+    async (question: string) => {
+      if (!project?.id || !question.trim()) return;
 
       try {
-        // Get answer from AI
-        const { output, filesReferences } = await askQuestion(
-          followUpQuestion,
-          project.id,
+        const { activeChat } = state;
+        if (!activeChat) return;
+
+        // First check if this question is already being processed or answered
+        const isQuestionAlreadyProcessed = activeChat.questions.some(
+          (q) => q.question === question,
         );
 
-        // Start streaming the answer
-        setStreamContent("");
-        let fullAnswer = "";
+        const isQuestionAlreadyInProgress = activeChat.questions.some(
+          (q) => q.question === question && q.answer === "Getting answer...",
+        );
 
-        for await (const delta of readStreamableValue(output)) {
-          if (delta) {
-            fullAnswer += delta;
-            setStreamContent(fullAnswer);
-          }
+        if (isQuestionAlreadyProcessed && !isQuestionAlreadyInProgress) {
+          console.log("Question already answered");
+          return;
         }
 
-        // Save the follow-up question to the chat
-        await addFollowupQuestion.mutateAsync({
-          chatId: activeChat.id,
-          question: followUpQuestion,
-          answer: fullAnswer,
-          filesReferences,
-        });
+        if (isQuestionAlreadyInProgress) {
+          console.log("Question already being processed");
+          return;
+        }
 
-        // Clear input and stream content
-        setFollowUpQuestion("");
-        setStreamContent("");
+        // Add optimistic update immediately
+        addFollowUpOptimistically(question, "Getting answer...", []);
 
-        // Refetch the chats to update the UI
-        refetch();
+        try {
+          // Fetch complete answer without streaming updates
+          const { output, filesReferences = [] } = await askQuestion(
+            question,
+            project.id,
+          );
+
+          // Collect full answer without UI updates
+          let fullAnswer = "";
+          for await (const delta of readStreamableValue(output)) {
+            if (delta) {
+              fullAnswer += delta;
+            }
+          }
+
+          // Update UI once with the complete answer
+          addFollowUpOptimistically(question, fullAnswer, filesReferences);
+
+          // Save to database in background
+          await addFollowupQuestion.mutateAsync({
+            chatId: activeChat.id,
+            question,
+            answer: fullAnswer,
+            filesReferences,
+          });
+
+          // Refresh chat data
+          await apiUtils.qa.getChats.invalidate({ projectId });
+        } catch (error) {
+          console.error("Failed to save follow-up:", error);
+          toast.error("Failed to save follow-up question to database");
+        }
       } catch (error) {
         console.error("Failed to process follow-up:", error);
         toast.error("Failed to get answer to follow-up question");
-      } finally {
-        setIsStreaming(false);
       }
     },
     [
-      followUpQuestion,
-      isStreaming,
-      activeChat,
       project?.id,
+      state, // Add missing dependency here
+      addFollowUpOptimistically,
       addFollowupQuestion,
-      refetch,
+      apiUtils.qa.getChats,
+      projectId,
     ],
   );
-
-  // Handle dialog close
-  const handleSetIsOpen = (newOpenState: boolean) => {
-    setIsOpen(newOpenState);
-
-    if (!newOpenState) {
-      // Clean up URL when closing the dialog
-      const url = new URL(window.location.href);
-      if (url.searchParams.has("chat")) {
-        url.searchParams.delete("chat");
-        router.replace(url.pathname + url.search, { scroll: false });
-      }
-
-      // Clear states
-      setStreamContent("");
-      setFollowUpQuestion("");
-    }
-  };
 
   // Show empty state when no project exists
   if (!hasProject) {
@@ -197,7 +188,26 @@ function QAContent() {
   return (
     <>
       <ProjectSelector className="mb-4" />
-      <AskQuestionCard />
+
+      {/* Use the reusable AskQuestionCard component */}
+      <AskQuestionCard
+        context="project"
+        contextId={projectId}
+        askAction={async (question, quote, contextId) => {
+          return askQuestion(question, contextId);
+        }}
+        createChatMutation={async (data) => {
+          return createChat.mutateAsync({
+            projectId: data.projectId,
+            question: data.question,
+            answer: data.answer,
+            filesReferences: data.filesReferences || [],
+          });
+        }}
+        invalidateQueries={async () => {
+          return apiUtils.qa.getChats.invalidate({ projectId });
+        }}
+      />
 
       <h2 className="mb-2 mt-6 text-xl font-semibold">
         Saved Chats for {project?.name}
@@ -207,21 +217,23 @@ function QAContent() {
       {!chats?.length ? (
         <NoQuestionsEmptyState />
       ) : (
-        <ChatList chats={chats} onChatClick={handleChatClick} />
+        <ChatList chats={chats} variant="default" />
       )}
 
       <ChatDialog
-        isOpen={isOpen && !!activeChat}
-        setIsOpen={handleSetIsOpen}
-        activeChat={activeChat}
-        followUpQuestion={followUpQuestion}
-        isStreaming={isStreaming}
-        streamContent={streamContent}
         messagesEndRef={messagesEndRef}
-        onFollowUpChange={handleFollowUpChange}
-        onFollowUpSubmit={handleFollowUpSubmit}
+        onFollowUpSubmit={submitFollowUpQuestion}
       />
     </>
+  );
+}
+
+// Wrap the whole component with the ChatProvider
+function QAContentWithProvider() {
+  return (
+    <ChatProvider>
+      <QAContent />
+    </ChatProvider>
   );
 }
 
@@ -235,7 +247,7 @@ export default function QAPage() {
         </div>
       }
     >
-      <QAContent />
+      <QAContentWithProvider />
     </Suspense>
   );
 }

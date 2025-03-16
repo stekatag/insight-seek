@@ -102,6 +102,8 @@ model Meeting {
     meetingEmbeddings MeetingEmbedding[]
 
     externalId String? // Add this field to store external transcription ID
+
+    chats Chat[] // Add this relation for meeting chats
 }
 
 model MeetingEmbedding {
@@ -199,6 +201,9 @@ model Chat {
     
     userId    String
     user      User     @relation(fields: [userId], references: [id])
+
+    meetingId String?  // Optional field to link chat to a meeting
+    meeting   Meeting? @relation(fields: [meetingId], references: [id])
     
-    questions Question[] // Relation to questions
+    questions Question[] 
 }

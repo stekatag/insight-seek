@@ -2,15 +2,15 @@ import { z } from "zod";
 
 import { createTRPCRouter, protectedProdecure } from "../trpc";
 
-export const qaRouter = createTRPCRouter({
-  // Create a new chat with first question
-  createChat: protectedProdecure
+export const meetingChatRouter = createTRPCRouter({
+  // Create a new chat with first question for a meeting
+  createMeetingChat: protectedProdecure
     .input(
       z.object({
+        meetingId: z.string(),
         projectId: z.string(),
         question: z.string(),
         answer: z.string(),
-        filesReferences: z.any(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -21,6 +21,7 @@ export const qaRouter = createTRPCRouter({
             title: input.question.slice(0, 100), // Use first question as title
             projectId: input.projectId,
             userId: ctx.user.userId!,
+            meetingId: input.meetingId, // Associate with meeting
           },
         });
 
@@ -28,7 +29,7 @@ export const qaRouter = createTRPCRouter({
           data: {
             question: input.question,
             answer: input.answer.trim(), // Ensure we trim any whitespace
-            filesReferences: input.filesReferences,
+            filesReferences: [], // No files for meeting questions
             projectId: input.projectId,
             userId: ctx.user.userId!,
             chatId: chat.id,
@@ -39,14 +40,13 @@ export const qaRouter = createTRPCRouter({
       });
     }),
 
-  // Add question to existing chat (for follow-ups)
+  // Add question to existing meeting chat (for follow-ups)
   addFollowupQuestion: protectedProdecure
     .input(
       z.object({
         chatId: z.string(),
         question: z.string(),
         answer: z.string(),
-        filesReferences: z.any(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,7 +56,7 @@ export const qaRouter = createTRPCRouter({
           id: input.chatId,
           userId: ctx.user.userId!,
         },
-        select: { projectId: true },
+        select: { projectId: true, meetingId: true },
       });
 
       if (!chat) {
@@ -70,7 +70,7 @@ export const qaRouter = createTRPCRouter({
           data: {
             question: input.question,
             answer: input.answer,
-            filesReferences: input.filesReferences,
+            filesReferences: [], // No files for meeting questions
             projectId: chat.projectId,
             userId: ctx.user.userId!,
             chatId: input.chatId,
@@ -88,10 +88,30 @@ export const qaRouter = createTRPCRouter({
       return question;
     }),
 
-  // Get chat with all its questions
-  getChat: protectedProdecure
+  // Get all chats for a meeting
+  getMeetingChats: protectedProdecure
+    .input(z.object({ meetingId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.chat.findMany({
+        where: {
+          meetingId: input.meetingId,
+          userId: ctx.user.userId!,
+        },
+        include: {
+          questions: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+    }),
+
+  // Get a specific chat by ID
+  getChatById: protectedProdecure
     .input(z.object({ chatId: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (!input.chatId) return null;
+
       return await ctx.db.chat.findUnique({
         where: {
           id: input.chatId,
@@ -102,25 +122,6 @@ export const qaRouter = createTRPCRouter({
             orderBy: { createdAt: "asc" },
           },
         },
-      });
-    }),
-
-  // Get all chats for a project (excluding meeting chats)
-  getChats: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.chat.findMany({
-        where: {
-          projectId: input.projectId,
-          userId: ctx.user.userId!,
-          meetingId: null, // Only return chats NOT associated with meetings
-        },
-        include: {
-          questions: {
-            orderBy: { createdAt: "asc" },
-          },
-        },
-        orderBy: { updatedAt: "desc" },
       });
     }),
 });
