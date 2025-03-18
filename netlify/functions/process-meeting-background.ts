@@ -1,32 +1,119 @@
 import { db } from "@/server/db";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import type { Context } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
 import type { Issue } from "@prisma/client";
 import pLimit from "p-limit";
+import { z } from "zod";
 
 import {
   checkTranscriptionStatus,
   processCompletedTranscript,
+  startMeetingTranscription,
   type ProcessedSummary,
 } from "@/lib/assembly";
 import { generateEmbedding } from "@/lib/gemini";
 
-export default async (request: Request, context: Context) => {
-  console.time("Meeting Processing Time");
+// Define the request body schema
+const bodyParser = z.object({
+  audio_url: z.string(),
+  projectId: z.string(),
+  meetingId: z.string(),
+});
+
+export default async (request: Request) => {
   try {
+    // Parse request body
     const body = await request.json();
-    const { transcriptId, meetingId } = body;
+    console.log("Received request body:", JSON.stringify(body));
 
-    console.log(
-      `Background function processing meeting: ${meetingId} with transcript ID: ${transcriptId}`,
+    const { audio_url, projectId, meetingId } = bodyParser.parse(body);
+
+    console.log(`Processing meeting ${meetingId} for project ${projectId}`);
+
+    // Update meeting to PROCESSING status
+    await db.meeting.update({
+      where: { id: meetingId },
+      data: {
+        status: "PROCESSING",
+      },
+    });
+
+    // Use the AssemblyAI client to submit the transcription job
+    const transcriptData = await startMeetingTranscription(audio_url);
+    console.log(`Transcription started with ID: ${transcriptData.id}`);
+
+    // Store transcript ID in our database
+    await db.meeting.update({
+      where: { id: meetingId },
+      data: {
+        externalId: transcriptData.id,
+      },
+    });
+
+    // Start a detached process for background processing
+    // We need to use setImmediate to ensure the response is sent before heavy processing begins
+    const transcriptId = transcriptData.id;
+    setImmediate(() => {
+      processTranscriptionInBackground(transcriptId, meetingId)
+        .then(() =>
+          console.log(
+            `Background processing completed for meeting ${meetingId}`,
+          ),
+        )
+        .catch((err) =>
+          console.error(
+            `Background processing error for meeting ${meetingId}:`,
+            err,
+          ),
+        );
+    });
+
+    // Return a response to the client
+    return new Response(
+      JSON.stringify({
+        meetingId,
+        transcriptionId: transcriptId,
+        status: "processing",
+      }),
+      {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      },
     );
+  } catch (error) {
+    console.error("Process meeting error:", error);
 
-    // All imports are now global, no more async imports
+    if (error instanceof z.ZodError) {
+      return new Response(JSON.stringify({ error: error.issues }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-    let isCompleted = false;
-    let attempts = 0;
-    const MAX_ATTEMPTS = 30; // 15 minutes (checking every 30 seconds)
+    return new Response(
+      JSON.stringify({
+        error: "Internal Server Error",
+        details: error instanceof Error ? error.message : String(error),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+};
 
+// This function runs in the background to poll for transcription completion
+async function processTranscriptionInBackground(
+  transcriptId: string,
+  meetingId: string,
+) {
+  console.log(
+    `Starting background processing for meeting ${meetingId} with transcript ${transcriptId}`,
+  );
+
+  let isCompleted = false;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 30; // 15 minutes (checking every 30 seconds)
+
+  try {
     while (!isCompleted && attempts < MAX_ATTEMPTS) {
       attempts++;
       console.log(`Polling attempt ${attempts} for transcript ${transcriptId}`);
@@ -36,6 +123,7 @@ export default async (request: Request, context: Context) => {
 
       // Check transcription status
       const status = await checkTranscriptionStatus(transcriptId);
+      console.log(`Transcript ${transcriptId} status: ${status.status}`);
 
       if (status.status === "completed") {
         console.log(
@@ -115,7 +203,10 @@ export default async (request: Request, context: Context) => {
           where: { id: meetingId },
           data: {
             status: "COMPLETED",
-            name: summaries[0]?.gist || "Untitled Meeting",
+            name:
+              summaries.length > 0
+                ? summaries[0]?.gist || "Untitled Meeting"
+                : "Untitled Meeting",
           },
         });
 
@@ -132,36 +223,28 @@ export default async (request: Request, context: Context) => {
         data: { status: "ERROR" },
       });
     }
-
-    console.timeEnd("Meeting Processing Time");
-
-    return new Response(
-      JSON.stringify({
-        status: "success",
-        message: "Meeting processing completed",
-      }),
-    );
   } catch (error) {
-    console.error("Error in background function:", error);
+    console.error(
+      `Error in background processing for meeting ${meetingId}:`,
+      error,
+    );
 
-    // Try to update meeting status to ERROR if possible
+    // Update meeting status to ERROR
     try {
-      const { meetingId } = await request.json();
       await db.meeting.update({
         where: { id: meetingId },
         data: { status: "ERROR" },
       });
     } catch (updateError) {
-      console.error("Failed to update meeting status:", updateError);
+      console.error(
+        `Failed to update status to ERROR for meeting ${meetingId}:`,
+        updateError,
+      );
     }
-
-    console.timeEnd("Meeting Processing Time");
-
-    return new Response(
-      JSON.stringify({
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-      }),
-    );
   }
+}
+
+// Configure the function as a replacement for the Next.js API route
+export const config: Config = {
+  path: "/api/process-meeting",
 };
