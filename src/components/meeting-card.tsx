@@ -48,9 +48,6 @@ import {
 
 import { Spinner } from "./ui/spinner";
 
-// Always use the proxy endpoint
-const apiUrl = "/api/webrunner-proxy";
-
 export default function MeetingCard() {
   const { project } = useProject();
   const router = useRouter();
@@ -74,34 +71,12 @@ export default function MeetingCard() {
       projectId: string;
     }) => {
       const { meetingUrl, meetingId, projectId } = data;
-
-      console.log(`Processing meeting via proxy endpoint`);
-
-      try {
-        const response = await axios.post(
-          apiUrl,
-          {
-            audio_url: meetingUrl,
-            meetingId,
-            projectId,
-          },
-          {
-            // Don't throw error on non-2xx responses
-            validateStatus: () => true,
-            // Increase timeout for large files
-            timeout: 60000,
-          },
-        );
-
-        console.log(`Proxy response: ${response.status}`, response.data);
-
-        // Return success regardless of response content
-        return response.data || { status: "processing" };
-      } catch (error) {
-        console.error("Error calling proxy endpoint:", error);
-        // Don't fail the flow even if there's an error
-        return { status: "processing" };
-      }
+      const response = await axios.post("/api/process-meeting", {
+        audio_url: meetingUrl,
+        meetingId,
+        projectId,
+      });
+      return response.data;
     },
   });
 

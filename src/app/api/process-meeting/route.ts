@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { auth } from "@clerk/nextjs/server";
-import type { Issue } from "@prisma/client";
 import { z } from "zod";
 
-import {
-  startMeetingTranscription,
-  type ProcessedSummary,
-} from "@/lib/assembly";
+import { startMeetingTranscription } from "@/lib/assembly";
 
 const bodyParser = z.object({
   audio_url: z.string(),
@@ -49,8 +45,61 @@ export async function POST(req: NextRequest) {
 
     console.log(`Transcription started with ID: ${transcriptData.id}`);
 
-    // Start a background process to poll for completion
-    void pollTranscriptionStatus(transcriptData.id, meetingId);
+    // Trigger the Netlify background function
+    try {
+      // In development, use the local Netlify Functions server
+      // In production, use the Netlify Functions URL
+      const isNetlify = process.env.NETLIFY === "true";
+      const isDev = process.env.NODE_ENV === "development";
+
+      let backgroundFunctionUrl;
+      if (isNetlify) {
+        // On Netlify, use the API path that matches our config
+        backgroundFunctionUrl = "/api/process-meeting-background";
+      } else if (isDev) {
+        // In local dev with netlify dev, use the .netlify/functions path
+        backgroundFunctionUrl =
+          "/.netlify/functions/process-meeting-background";
+      } else {
+        // Fallback
+        backgroundFunctionUrl = "/api/process-meeting-background";
+      }
+
+      // Get base URL from request
+      const origin =
+        req.headers.get("origin") ||
+        process.env.NEXT_PUBLIC_URL ||
+        "http://localhost:8888";
+      const url = new URL(backgroundFunctionUrl, origin);
+
+      console.log(`Triggering background function at: ${url.toString()}`);
+
+      // Fire and forget - we don't wait for the response
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transcriptId: transcriptData.id,
+          meetingId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          `Background function error: ${response.status} ${response.statusText}`,
+        );
+        const text = await response.text();
+        console.error(`Response body: ${text}`);
+      } else {
+        console.log("Background function triggered successfully");
+      }
+    } catch (error) {
+      console.error("Failed to trigger background function:", error);
+      // We continue even if the background function trigger fails
+      // The status will still show as PROCESSING
+    }
 
     return NextResponse.json(
       {
@@ -74,144 +123,5 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 },
     );
-  }
-}
-
-// This function will run in the background to poll for completion
-async function pollTranscriptionStatus(
-  transcriptId: string,
-  meetingId: string,
-) {
-  const { checkTranscriptionStatus, processCompletedTranscript } = await import(
-    "@/lib/assembly"
-  );
-  const { generateEmbedding } = await import("@/lib/gemini");
-  const { RecursiveCharacterTextSplitter } = await import(
-    "@langchain/textsplitters"
-  );
-  const pLimit = (await import("p-limit")).default;
-
-  let isCompleted = false;
-  let attempts = 0;
-  const MAX_ATTEMPTS = 60; // 30 minutes (checking every 30 seconds)
-
-  try {
-    while (!isCompleted && attempts < MAX_ATTEMPTS) {
-      attempts++;
-      console.log(`Polling attempt ${attempts} for transcript ${transcriptId}`);
-
-      // Wait 30 seconds between checks
-      await new Promise((resolve) => setTimeout(resolve, 30000));
-
-      // Check transcription status
-      const status = await checkTranscriptionStatus(transcriptId);
-
-      if (status.status === "completed") {
-        console.log(
-          `Transcription ${transcriptId} completed, processing results`,
-        );
-        isCompleted = true;
-
-        // Process the completed transcript with proper typing
-        const { text, summaries } = await processCompletedTranscript(status);
-
-        const splitter = new RecursiveCharacterTextSplitter({
-          chunkSize: 800,
-          chunkOverlap: 130,
-        });
-
-        // Create documents from the transcript
-        const docs = await splitter.createDocuments([text]);
-        console.log(`Created ${docs.length} document chunks`);
-
-        // Get the embeddings
-        const embeddings = await Promise.all(
-          docs.map(async (doc, index) => {
-            console.log(
-              `Generating embedding for chunk ${index + 1}/${docs.length}`,
-            );
-            const embedding = await generateEmbedding(doc.pageContent);
-            return { embedding, content: doc.pageContent };
-          }),
-        );
-
-        const limit = pLimit(10);
-
-        console.log("Saving embeddings to database");
-        // Save the embeddings
-        await Promise.all(
-          embeddings.map(async (embedding, index) => {
-            return limit(async () => {
-              console.log(`Saving embedding ${index + 1}/${embeddings.length}`);
-              const meetingEmbedding = await db.meetingEmbedding.create({
-                data: {
-                  meetingId,
-                  content: embedding.content,
-                },
-              });
-
-              await db.$executeRaw`
-              UPDATE "MeetingEmbedding"
-              SET "embedding" = ${embedding.embedding}::vector
-              WHERE id = ${meetingEmbedding.id}`;
-            });
-          }),
-        );
-
-        // Save issues/summaries with proper typing
-        if (summaries.length > 0) {
-          console.log(`Saving ${summaries.length} summary items`);
-
-          // Create array of Issue objects that match the Prisma schema
-          const issueData: Omit<Issue, "id" | "createdAt" | "updatedAt">[] =
-            summaries.map((summary: ProcessedSummary) => ({
-              start: summary.start,
-              end: summary.end,
-              gist: summary.gist,
-              headline: summary.headline,
-              summary: summary.summary,
-              meetingId,
-            }));
-
-          await db.issue.createMany({
-            data: issueData,
-          });
-        }
-
-        // Update meeting status to completed
-        console.log("Updating meeting status to COMPLETED");
-        await db.meeting.update({
-          where: { id: meetingId },
-          data: {
-            status: "COMPLETED",
-            name: summaries[0]?.gist || "Untitled Meeting",
-          },
-        });
-
-        console.log("Processing completed successfully");
-      } else {
-        console.log(`Transcript status: ${status.status}, continuing to poll`);
-      }
-    }
-
-    if (!isCompleted) {
-      console.log(`Polling timed out after ${attempts} attempts`);
-      await db.meeting.update({
-        where: { id: meetingId },
-        data: { status: "ERROR" },
-      });
-    }
-  } catch (error) {
-    console.error("Error in polling:", error);
-
-    // Update meeting status to ERROR
-    try {
-      await db.meeting.update({
-        where: { id: meetingId },
-        data: { status: "ERROR" },
-      });
-    } catch (updateError) {
-      console.error("Failed to update meeting status:", updateError);
-    }
   }
 }
