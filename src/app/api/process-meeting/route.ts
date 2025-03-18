@@ -47,29 +47,15 @@ export async function POST(req: NextRequest) {
 
     // Trigger the Netlify background function
     try {
-      // In development, use the local Netlify Functions server
-      // In production, use the Netlify Functions URL
-      const isNetlify = process.env.NETLIFY === "true";
+      const backgroundFunctionUrl =
+        "/.netlify/functions/process-meeting-background";
+
+      // Use localhost:8888 only for dev, otherwise prefer NEXT_PUBLIC_APP_URL
       const isDev = process.env.NODE_ENV === "development";
+      const origin = isDev
+        ? "http://localhost:8888"
+        : process.env.NEXT_PUBLIC_APP_URL;
 
-      let backgroundFunctionUrl;
-      if (isNetlify) {
-        // On Netlify, use the API path that matches our config
-        backgroundFunctionUrl = "/api/process-meeting-background";
-      } else if (isDev) {
-        // In local dev with netlify dev, use the .netlify/functions path
-        backgroundFunctionUrl =
-          "/.netlify/functions/process-meeting-background";
-      } else {
-        // Fallback
-        backgroundFunctionUrl = "/api/process-meeting-background";
-      }
-
-      // Get base URL from request
-      const origin =
-        req.headers.get("origin") ||
-        process.env.NEXT_PUBLIC_URL ||
-        "http://localhost:8888";
       const url = new URL(backgroundFunctionUrl, origin);
 
       console.log(`Triggering background function at: ${url.toString()}`);
