@@ -164,16 +164,18 @@ export async function pullCommits(projectId: string) {
     // Process each new commit using the background function
     for (const commit of newCommits) {
       try {
-        // Get the base URL based on environment
-        // Get the base URL for the API
-        const baseUrl =
-          process.env.NODE_ENV === "development"
-            ? "http://localhost:8888"
-            : process.env.NEXT_PUBLIC_APP_URL;
+        // In production, use relative URL which will be resolved against the current origin
+        // In development, use absolute URL with localhost
+        let url = "/api/process-commit";
 
-        // Call the background function for each commit using axios with absolute URL
+        // Only use absolute URL with localhost in development
+        if (process.env.NODE_ENV === "development") {
+          url = "http://localhost:8888/api/process-commit";
+        }
+
+        // Call the background function for each commit using axios
         await axios
-          .post(`${baseUrl}/api/process-commit`, {
+          .post(url, {
             commitHash: commit.commitHash,
             projectId,
             githubUrl: project.githubUrl,
