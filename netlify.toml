@@ -1,32 +1,7 @@
 [build]
-  command = "pnpm build"
+  command = "npm run build"
   publish = ".next"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-
-# This specifically configures the process-meeting-background function
-[functions.process-meeting-background]
-  background = true
-  included_files = ["**"]
-
-# Make sure redirects are configured correctly
-[[redirects]]
-  from = "/.netlify/functions/process-meeting-background"
-  to = "/.netlify/functions/process-meeting-background"
-  status = 200
-  force = true
-
-# Ensure other Next.js API routes work as expected
-[[redirects]]
-  from = "/api/*"
-  to = "/api/:splat"
-  status = 200
-
-# For client-side routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
