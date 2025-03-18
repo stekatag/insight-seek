@@ -17,7 +17,7 @@ export const commitRouter = createTRPCRouter({
       return commits;
     }),
 
-  // Process commits for a project
+  // Process commits for a project - this mutation now just returns the data needed for client-side processing
   processCommits: protectedProdecure
     .input(
       z.object({
@@ -57,35 +57,15 @@ export const commitRouter = createTRPCRouter({
         console.error("Error fetching GitHub token:", error);
       }
 
-      try {
-        // This is the most common pattern for axios that works in both server and client contexts
-        console.log("Calling commits processing endpoint");
-
-        // For server-side execution, we need absolute URLs
-        const baseUrl =
-          process.env.NODE_ENV === "development"
-            ? "http://localhost:8888"
-            : "https://insightseek.vip";
-
-        // Use a simple axios.post() call with absolute URL
-        await axios.post(
-          `${baseUrl}/.netlify/functions/process-commits-background`,
-          {
-            githubUrl,
-            projectId,
-            githubToken,
-          },
-        );
-
-        return {
-          success: true,
-          message: "Commits processing started",
-        };
-      } catch (error) {
-        console.error("Failed to process commits:", error);
-        throw new Error(
-          `Failed to process commits: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      }
+      // Return the data for client-side processing
+      return {
+        success: true,
+        message: "Commits processing can be started",
+        data: {
+          projectId,
+          githubUrl,
+          githubToken,
+        },
+      };
     }),
 });

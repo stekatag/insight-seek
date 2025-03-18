@@ -128,30 +128,8 @@ export const projectRouter = createTRPCRouter({
         );
         console.log(`Source code indexing completed for project ${project.id}`);
 
-        // Trigger commit processing with the background function
-        try {
-          console.log(`Triggering commit processing for project ${project.id}`);
-
-          // For server-side execution, we need absolute URLs
-          const baseUrl =
-            process.env.NODE_ENV === "development"
-              ? "http://localhost:8888"
-              : "https://insightseek.vip";
-
-          // Use simple axios.post() with absolute URL
-          await axios.post(
-            `${baseUrl}/.netlify/functions/process-commits-background`,
-            {
-              githubUrl: input.githubUrl,
-              projectId: project.id,
-              githubToken,
-            },
-          );
-
-          console.log(`Commit processing triggered for project ${project.id}`);
-        } catch (commitError) {
-          console.error("Failed to trigger commit processing:", commitError);
-        }
+        // We'll call the process-commits endpoint directly from the client after project creation
+        // This avoids server-side fetch issues in Netlify functions
       } catch (error) {
         console.error(`Error during repository indexing: ${error}`);
 

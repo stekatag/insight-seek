@@ -45,13 +45,35 @@ export default function CommitLog() {
 
   // Process commits mutation - centralized in the commit router
   const processCommitsMutation = api.commit.processCommits.useMutation({
-    onSuccess: () => {
+    onSuccess: async (result) => {
       toast.success("Refreshing commits...");
-      // Set a small timeout before first refetch to allow background processing to start
-      setTimeout(() => {
+
+      try {
+        // Make the direct fetch to the background function from the client side
+        // This avoids issues with server-side API calls
+        await fetch("/api/process-commits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId: result.data.projectId,
+            githubUrl: result.data.githubUrl,
+            githubToken: result.data.githubToken,
+          }),
+        });
+
+        // Set a small timeout before first refetch to allow background processing to start
+        setTimeout(() => {
+          refetch();
+          setLastRefreshTime(Date.now());
+        }, 1000);
+      } catch (error) {
+        console.error("Error calling background function:", error);
+        // Even if the background function call fails, we'll still refetch data
+        // as commits might have been updated in the database
         refetch();
-        setLastRefreshTime(Date.now());
-      }, 1000);
+      }
     },
     onError: (error) => {
       toast.error("Failed to refresh commits: " + error.message);
