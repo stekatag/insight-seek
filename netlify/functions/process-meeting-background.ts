@@ -1,8 +1,15 @@
 import { db } from "@/server/db";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import type { Context } from "@netlify/functions";
 import type { Issue } from "@prisma/client";
+import pLimit from "p-limit";
 
-import type { ProcessedSummary } from "@/lib/assembly";
+import {
+  checkTranscriptionStatus,
+  processCompletedTranscript,
+  type ProcessedSummary,
+} from "@/lib/assembly";
+import { generateEmbedding } from "@/lib/gemini";
 
 export default async (request: Request, context: Context) => {
   console.time("Meeting Processing Time");
@@ -14,14 +21,7 @@ export default async (request: Request, context: Context) => {
       `Background function processing meeting: ${meetingId} with transcript ID: ${transcriptId}`,
     );
 
-    // Import dependencies inside the function to reduce cold start time
-    const { checkTranscriptionStatus, processCompletedTranscript } =
-      await import("@/lib/assembly");
-    const { generateEmbedding } = await import("@/lib/gemini");
-    const { RecursiveCharacterTextSplitter } = await import(
-      "@langchain/textsplitters"
-    );
-    const pLimit = (await import("p-limit")).default;
+    // All imports are now global, no more async imports
 
     let isCompleted = false;
     let attempts = 0;
