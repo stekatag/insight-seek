@@ -1,6 +1,5 @@
+import axios from "axios";
 import { z } from "zod";
-
-import { pullCommits } from "@/lib/github";
 
 import { createTRPCRouter, protectedProdecure } from "../trpc";
 
@@ -9,28 +8,80 @@ export const commitRouter = createTRPCRouter({
   getCommits: protectedProdecure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
-      // Check for commits that need to be loaded
-      const existingCommits = await ctx.db.commit.findMany({
+      // Fetch commits from database
+      const commits = await ctx.db.commit.findMany({
         where: { projectId: input.projectId },
         orderBy: { commitDate: "desc" },
       });
 
-      // If we have no commits or it's been more than 10 minutes since last check
-      // trigger a background update
-      const shouldRefresh =
-        existingCommits.length === 0 ||
-        (existingCommits.length > 0 &&
-          Date.now() - (existingCommits[0]?.updatedAt?.getTime() ?? 0) >
-            10 * 60 * 1000);
+      return commits;
+    }),
 
-      if (shouldRefresh) {
-        // Start commits pull in the background without waiting for it
-        void pullCommits(input.projectId).catch((err) =>
-          console.error(`Background commit pull failed: ${err}`),
-        );
+  // Process commits for a project
+  processCommits: protectedProdecure
+    .input(
+      z.object({
+        projectId: z.string(),
+        githubUrl: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { projectId, githubUrl } = input;
+
+      // Get GitHub token if available
+      let githubToken = undefined;
+      try {
+        const project = await ctx.db.project.findFirst({
+          where: { id: projectId },
+          select: {
+            userToProjects: {
+              select: { userId: true },
+              take: 1,
+            },
+          },
+        });
+
+        const projectOwner = project?.userToProjects[0]?.userId;
+
+        if (projectOwner) {
+          const userToken = await ctx.db.userGitHubToken.findUnique({
+            where: { userId: projectOwner },
+            select: { token: true },
+          });
+
+          if (userToken?.token) {
+            githubToken = userToken.token;
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching GitHub token:", error);
+        // Continue without token if we can't get it
       }
 
-      // Immediately return existing commits
-      return existingCommits;
+      try {
+        // Determine the proper URL for the API
+        // Using the complete path for axios is crucial for both server & client environments
+        const apiUrl =
+          process.env.NODE_ENV === "development"
+            ? "http://localhost:8888/api/process-commits"
+            : "https://insightseek.vip/api/process-commits";
+
+        console.log(`Calling commits processing endpoint at: ${apiUrl}`);
+
+        // Call the background function to process commits with correct URL
+        const response = await axios.post(apiUrl, {
+          githubUrl,
+          projectId,
+          githubToken,
+        });
+
+        return {
+          success: true,
+          message: "Commits processing started",
+        };
+      } catch (error) {
+        console.error("Failed to process commits:", error);
+        throw new Error("Failed to process commits");
+      }
     }),
 });

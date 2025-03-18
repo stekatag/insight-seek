@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
+import axios from "axios";
 import { z } from "zod";
 
 import { isAbortOrTimeoutError } from "@/lib/error-utils";
-import { pullCommits } from "@/lib/github";
 import { getInstallationToken } from "@/lib/github-app";
 import { checkCredits, indexGithubRepo } from "@/lib/github-loader";
 import { validateGitHubRepo } from "@/lib/github-validator";
@@ -128,10 +128,25 @@ export const projectRouter = createTRPCRouter({
         );
         console.log(`Source code indexing completed for project ${project.id}`);
 
-        // Pull commits in the background - this can run asynchronously
-        void pullCommits(project.id).catch((error) => {
-          console.error("Failed to pull commits:", error);
-        });
+        // Trigger commit processing with the background function
+        try {
+          // Determine the proper URL for the API
+          const apiUrl = process.env.NODE_ENV === "development" 
+            ? "http://localhost:8888/api/process-commits" 
+            : "https://insightseek.vip/api/process-commits";
+          
+          console.log(`Calling commits processing endpoint at: ${apiUrl}`);
+          
+          // Call the background function directly with the full URL
+          await axios.post(apiUrl, {
+            githubUrl: input.githubUrl,
+            projectId: project.id,
+            githubToken,
+          });
+          console.log(`Commit processing triggered for project ${project.id}`);
+        } catch (commitError) {
+          console.error("Failed to trigger commit processing:", commitError);
+        }
       } catch (error) {
         console.error(`Error during repository indexing: ${error}`);
 

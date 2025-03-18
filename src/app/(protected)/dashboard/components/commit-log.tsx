@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, RefreshCw, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
 import {
@@ -14,18 +15,21 @@ import {
   TRUNCATION_LIMITS,
 } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
   const [hasPendingSummaries, setHasPendingSummaries] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
 
   // Calculate dynamic refetch interval based on pending summaries
   const refetchInterval = hasPendingSummaries
-    ? 10000 // 10 seconds if there are pending summaries
+    ? 5000 // 5 seconds if there are pending summaries (faster)
     : 180000; // 3 minutes for regular updates
 
+  // Fetch commits using TRPC
   const {
     data: commits,
     refetch,
@@ -35,8 +39,24 @@ export default function CommitLog() {
     {
       enabled: !!projectId,
       refetchInterval,
+      staleTime: hasPendingSummaries ? 1000 : 60000, // Make data stale quickly when there are pending summaries
     },
   );
+
+  // Process commits mutation - centralized in the commit router
+  const processCommitsMutation = api.commit.processCommits.useMutation({
+    onSuccess: () => {
+      toast.success("Refreshing commits...");
+      // Set a small timeout before first refetch to allow background processing to start
+      setTimeout(() => {
+        refetch();
+        setLastRefreshTime(Date.now());
+      }, 1000);
+    },
+    onError: (error) => {
+      toast.error("Failed to refresh commits: " + error.message);
+    },
+  });
 
   // Check for pending summaries and update state
   useEffect(() => {
@@ -44,45 +64,121 @@ export default function CommitLog() {
       const pending = commits.some(
         (commit) => commit.summary === "Analyzing commit...",
       );
-      setHasPendingSummaries(pending);
 
-      // If there were pending summaries but now they're all done,
-      // trigger one final refetch to ensure we have the latest data
-      if (!pending && hasPendingSummaries) {
-        setTimeout(() => {
+      // Only update state if it's changed to avoid unnecessary rerenders
+      if (pending !== hasPendingSummaries) {
+        setHasPendingSummaries(pending);
+
+        // If there were pending summaries but now they're all done, do a forced refetch
+        if (!pending && hasPendingSummaries) {
+          console.log("Summaries completed, doing final refetch");
           refetch();
-        }, 1000);
+        }
       }
     }
   }, [commits, hasPendingSummaries, refetch]);
 
-  // Refetch when component mounts to ensure we have the latest data
+  // Check if we need to load commits initially or refresh them
   useEffect(() => {
-    if (projectId) {
-      refetch();
-    }
-  }, [projectId, refetch]);
+    const shouldCheck = projectId && project?.githubUrl;
+    if (!shouldCheck) return;
 
-  // Return null if no project or explicitly no commits
-  if (!projectId || (commits && commits.length === 0)) return null;
+    // Check if no commits or if it's been more than 10 minutes since last refresh
+    const needsRefresh =
+      !commits ||
+      commits.length === 0 ||
+      Date.now() - lastRefreshTime > 10 * 60 * 1000;
+
+    if (needsRefresh) {
+      console.log("Initial commit refresh needed");
+      handleRefreshCommits();
+    }
+  }, [projectId, project?.githubUrl]); // Deliberately remove commits from dependencies
+
+  // Handle refresh button click
+  const handleRefreshCommits = () => {
+    if (!projectId || !project?.githubUrl) return;
+
+    processCommitsMutation.mutate({
+      projectId,
+      githubUrl: project.githubUrl,
+    });
+  };
+
+  // Return null if no project
+  if (!projectId) return null;
 
   // Show loading state
   if (isLoading || !commits) {
     return <CommitLogSkeleton />;
   }
 
+  // If no commits are available, show a message and refresh button
+  if (commits.length === 0) {
+    return (
+      <div className="rounded-lg border p-8 text-center">
+        <h2 className="mb-2 text-xl font-semibold">No Commits Found</h2>
+        <p className="mb-6 text-muted-foreground">
+          We couldn't find any commits for this project. Try refreshing or check
+          your repository URL.
+        </p>
+        <Button
+          onClick={handleRefreshCommits}
+          disabled={processCommitsMutation.isPending}
+        >
+          {processCommitsMutation.isPending ? (
+            <>
+              <Spinner size="small" className="mr-2" />
+              Refreshing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh Commits
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  // Render commits list
   return (
     <>
       <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-        <h2 className="text-xl font-semibold">Recent Commits</h2>
-        <Link
-          href={`${project?.githubUrl}/commits`}
-          target="_blank"
-          className="text-sm text-muted-foreground hover:text-primary hover:underline"
-        >
-          View all on GitHub <ExternalLink className="ml-1 inline h-3 w-3" />
-        </Link>
+        <h2 className="text-xl font-semibold">
+          Recent Commits
+          {hasPendingSummaries && (
+            <span className="ml-2 text-xs text-amber-500">
+              (Generating summaries...)
+            </span>
+          )}
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshCommits}
+            disabled={processCommitsMutation.isPending}
+          >
+            {processCommitsMutation.isPending ? (
+              <Spinner size="small" className="mr-1" />
+            ) : (
+              <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            )}
+            Refresh
+          </Button>
+          <Link
+            href={`${project?.githubUrl}/commits`}
+            target="_blank"
+            className="text-sm text-muted-foreground hover:text-primary hover:underline"
+          >
+            View on GitHub <ExternalLink className="ml-1 inline h-3 w-3" />
+          </Link>
+        </div>
       </div>
+
+      {/* Actual commits list - no changes needed here */}
       <ul role="list" className="space-y-6">
         {commits.map((commit, commitIdx) => (
           <li key={commit.id} className="relative flex gap-x-2 sm:gap-x-4">
