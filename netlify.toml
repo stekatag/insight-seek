@@ -5,3 +5,8 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# This specifically configures the process-meeting-background function
+[functions.process-meeting-background]
+  background = true
+  included_files = ["**"]
