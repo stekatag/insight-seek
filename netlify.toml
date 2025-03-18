@@ -5,33 +5,4 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # Define external modules that should be copied directly rather than bundled
   external_node_modules = ["@prisma/client", "langchain", "@langchain/textsplitters"]
-
-# Specific configuration for the process-meeting-background function
-[functions.process-meeting-background]
-  background = true
-  # Be selective about which files to include
-  included_files = [
-    # Include only necessary source files
-    "src/lib/assembly.ts",
-    "src/lib/gemini.ts",
-    "src/server/db.ts",
-    "src/lib/transcription-processor.ts",
-    
-    # Include Prisma schema and generated files
-    "prisma/schema.prisma",
-    "node_modules/.prisma/**",
-    
-    # Include relevant package config files
-    "package.json"
-  ]
-  
-  # Exclude large unnecessary files from the function bundle
-  external_node_modules = [
-    "next", 
-    "react", 
-    "react-dom",
-    "@clerk/nextjs",
-    "googleapis"
-  ]
