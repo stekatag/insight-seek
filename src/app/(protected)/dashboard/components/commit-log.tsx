@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -19,6 +19,13 @@ import { Spinner } from "@/components/ui/spinner";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
+  const [hasPendingSummaries, setHasPendingSummaries] = useState(false);
+
+  // Calculate dynamic refetch interval based on pending summaries
+  const refetchInterval = hasPendingSummaries
+    ? 10000 // 10 seconds if there are pending summaries
+    : 180000; // 3 minutes for regular updates
+
   const {
     data: commits,
     refetch,
@@ -27,9 +34,27 @@ export default function CommitLog() {
     { projectId },
     {
       enabled: !!projectId,
-      refetchInterval: 180000, // Refetch every 3 minutes to get updated summaries
+      refetchInterval,
     },
   );
+
+  // Check for pending summaries and update state
+  useEffect(() => {
+    if (commits && commits.length > 0) {
+      const pending = commits.some(
+        (commit) => commit.summary === "Analyzing commit...",
+      );
+      setHasPendingSummaries(pending);
+
+      // If there were pending summaries but now they're all done,
+      // trigger one final refetch to ensure we have the latest data
+      if (!pending && hasPendingSummaries) {
+        setTimeout(() => {
+          refetch();
+        }, 1000);
+      }
+    }
+  }, [commits, hasPendingSummaries, refetch]);
 
   // Refetch when component mounts to ensure we have the latest data
   useEffect(() => {

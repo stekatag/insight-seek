@@ -124,23 +124,3 @@ export async function getInstallationToken(
     return null;
   }
 }
-
-/**
- * Creates an Octokit instance with the user's installation token
- */
-export async function createOctokitForUser(
-  userId: string,
-): Promise<Octokit | null> {
-  const token = await getInstallationToken(userId);
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    return new Octokit({ auth: token });
-  } catch (error) {
-    console.error("Error creating Octokit with token:", error);
-    return null;
-  }
-}

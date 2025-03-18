@@ -33,13 +33,4 @@ export const commitRouter = createTRPCRouter({
       // Immediately return existing commits
       return existingCommits;
     }),
-
-  // Add a manual refresh endpoint to force update commits
-  refreshCommits: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ input }) => {
-      // This explicitly waits for the commits to be pulled
-      const result = await pullCommits(input.projectId);
-      return result;
-    }),
 });

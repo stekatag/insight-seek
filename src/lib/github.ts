@@ -3,9 +3,8 @@
 
 import { db } from "@/server/db";
 import axios from "axios";
-import { Octokit } from "octokit";
 
-import { aiSummarizeCommit } from "./gemini";
+import { createRobustOctokit } from "./github-api";
 
 /**
  * Creates an authenticated Octokit instance
@@ -54,7 +53,7 @@ export async function getCommitHashes(
 ): Promise<CommitData[]> {
   try {
     const { owner, repo } = parseGitHubUrl(githubUrl);
-    const octokit = createOctokit(githubToken);
+    const octokit = createRobustOctokit(githubToken);
 
     const { data } = await octokit.rest.repos.listCommits({
       owner,
@@ -115,8 +114,7 @@ export async function pullCommits(projectId: string) {
     let githubToken: string | undefined = undefined;
 
     if (projectOwner) {
-      // You might have a table to store user GitHub tokens
-      // This is just a placeholder for the concept
+      // Get the user's GitHub token
       const userToken = await db.userGitHubToken
         .findUnique({
           where: { userId: projectOwner },
@@ -158,28 +156,38 @@ export async function pullCommits(projectId: string) {
         commitDate: new Date(commit.commitDate),
         commitMessage: commit.commitMessage,
         commitAuthorAvatar: commit.commitAuthorAvatar,
-        summary: "Loading commit summary...", // Better placeholder message
+        summary: "Analyzing commit...", // Better placeholder message
       })),
       skipDuplicates: true,
     });
 
-    // Process summaries in parallel
-    // Break commits into batches of 5 to avoid overwhelming the API
-    const batchSize = 5;
-    const commitBatches = [];
+    // Process each new commit using the background function
+    for (const commit of newCommits) {
+      try {
+        // Get the base URL based on environment
+        // Get the base URL for the API
+        const baseUrl =
+          process.env.NODE_ENV === "development"
+            ? "http://localhost:8888"
+            : process.env.NEXT_PUBLIC_APP_URL;
 
-    for (let i = 0; i < newCommits.length; i += batchSize) {
-      commitBatches.push(newCommits.slice(i, i + batchSize));
-    }
-
-    // Start processing all batches immediately without awaiting
-    for (const batch of commitBatches) {
-      void processCommitBatch(
-        project.githubUrl,
-        projectId,
-        batch,
-        githubToken,
-      ).catch((err) => console.error("Error processing commit batch:", err));
+        // Call the background function for each commit using axios with absolute URL
+        await axios
+          .post(`${baseUrl}/api/process-commit`, {
+            commitHash: commit.commitHash,
+            projectId,
+            githubUrl: project.githubUrl,
+            githubToken,
+          })
+          .catch((err) =>
+            console.error(
+              `Failed to trigger background function for commit ${commit.commitHash}:`,
+              err,
+            ),
+          );
+      } catch (err) {
+        console.error(`Failed to process commit ${commit.commitHash}:`, err);
+      }
     }
 
     return {
@@ -189,95 +197,5 @@ export async function pullCommits(projectId: string) {
   } catch (error) {
     console.error("Error pulling commits:", error);
     return { error: String(error), added: 0, total: 0 };
-  }
-}
-
-/**
- * Process a batch of commits in parallel
- */
-async function processCommitBatch(
-  githubUrl: string,
-  projectId: string,
-  commits: CommitData[],
-  githubToken?: string,
-) {
-  // Process all commits in the batch concurrently
-  await Promise.all(
-    commits.map(async (commit) => {
-      try {
-        // Generate summary
-        const summary = await summarizeCommit(
-          githubUrl,
-          commit.commitHash,
-          githubToken,
-        );
-
-        // Update the commit with the real summary
-        await db.commit.updateMany({
-          where: { projectId, commitHash: commit.commitHash },
-          data: { summary },
-        });
-      } catch (err) {
-        console.error(
-          `Failed to process summary for commit ${commit.commitHash}:`,
-          err,
-        );
-
-        // Update with error message if summarization fails
-        await db.commit.updateMany({
-          where: { projectId, commitHash: commit.commitHash },
-          data: { summary: "Failed to generate summary" },
-        });
-      }
-    }),
-  );
-}
-
-/**
- * Gets the diff for a commit and generates a summary
- */
-async function summarizeCommit(
-  githubUrl: string,
-  commitHash: string,
-  githubToken?: string,
-) {
-  try {
-    // Parse GitHub URL to get owner and repo
-    const { owner, repo } = parseGitHubUrl(githubUrl);
-
-    let diffData: string;
-
-    // Try to get diff using Octokit for better auth handling
-    try {
-      const octokit = createOctokit(githubToken);
-      const { data } = await octokit.rest.repos.getCommit({
-        owner,
-        repo,
-        ref: commitHash,
-        mediaType: { format: "diff" },
-      });
-
-      diffData = data as unknown as string;
-    } catch (error) {
-      // Fallback to direct URL request if Octokit approach fails
-      const { data } = await axios.get(
-        `${githubUrl}/commit/${commitHash}.diff`,
-        {
-          headers: {
-            Accept: "application/vnd.github.v3.diff",
-            ...(githubToken ? { Authorization: `token ${githubToken}` } : {}),
-          },
-        },
-      );
-
-      diffData = data;
-    }
-
-    // Generate summary using AI
-    const summary = await aiSummarizeCommit(diffData);
-    return summary || "No significant changes detected";
-  } catch (error) {
-    console.error(`Error summarizing commit ${commitHash}:`, error);
-    return "Unable to generate summary";
   }
 }
