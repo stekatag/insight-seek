@@ -39,14 +39,18 @@ function parseGitHubUrl(githubUrl: string): { owner: string; repo: string } {
  * Netlify background function to process a single commit and generate a summary
  */
 export default async (request: Request) => {
+  console.log("🔄 process-commit-background function invoked");
+
   try {
     // Parse request body
     const body = await request.json();
+    console.log("📥 Received request body:", JSON.stringify(body));
+
     const { commitHash, projectId, githubUrl, githubToken } =
       bodyParser.parse(body);
 
     console.log(
-      `Processing commit summary for ${commitHash} in project ${projectId}`,
+      `🚀 Processing commit summary for ${commitHash} in project ${projectId}`,
     );
 
     // Return a quick response
@@ -61,6 +65,10 @@ export default async (request: Request) => {
 
     // Send response before continuing
     await response.clone().text();
+
+    console.log(
+      "✅ Sent initial 202 response, continuing with background processing",
+    );
 
     try {
       // Parse GitHub URL to get owner and repo

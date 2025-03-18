@@ -161,34 +161,52 @@ export async function pullCommits(projectId: string) {
       skipDuplicates: true,
     });
 
-    // Process each new commit using the background function
-    let baseUrl;
-    if (process.env.NODE_ENV === "development") {
-      baseUrl = "http://localhost:8888";
-    } else {
-      baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    }
-
+    // Process each new commit - we need to handle server vs client environment differently
     for (const commit of newCommits) {
       try {
-        // Use regular fetch with a relative URL
-        await fetch(`${baseUrl}/api/process-commit`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            commitHash: commit.commitHash,
-            projectId,
-            githubUrl: project.githubUrl,
-            githubToken,
-          }),
-        }).catch((err) =>
-          console.error(
-            `Failed to trigger background function for commit ${commit.commitHash}:`,
-            err,
-          ),
-        );
+        // Server-side execution - use absolute URL with full domain
+        if (process.env.NODE_ENV === "production") {
+          const appUrl = "https://insightseek.vip";
+
+          // Log the URL we're using to help with debugging
+          console.log(
+            `Using server-side fetch to ${appUrl}/api/process-commit for commit ${commit.commitHash}`,
+          );
+
+          // Use node-fetch with absolute URL
+          await fetch(`${appUrl}/api/process-commit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              commitHash: commit.commitHash,
+              projectId,
+              githubUrl: project.githubUrl,
+              githubToken,
+            }),
+          });
+
+          console.log(
+            `Triggered background processing for commit ${commit.commitHash}`,
+          );
+        }
+        // Client-side execution - use relative URL
+        else {
+          console.log(
+            `Using client-side fetch to /api/process-commit for commit ${commit.commitHash}`,
+          );
+
+          // Use browser fetch with relative URL
+          await fetch("http://localhost:8888/api/process-commit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              commitHash: commit.commitHash,
+              projectId,
+              githubUrl: project.githubUrl,
+              githubToken,
+            }),
+          });
+        }
       } catch (err) {
         console.error(`Failed to process commit ${commit.commitHash}:`, err);
       }
