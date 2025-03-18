@@ -131,12 +131,13 @@ export const projectRouter = createTRPCRouter({
         // Trigger commit processing with the background function
         try {
           // Determine the proper URL for the API
-          const apiUrl = process.env.NODE_ENV === "development" 
-            ? "http://localhost:8888/api/process-commits" 
-            : "https://insightseek.vip/api/process-commits";
-          
+          const apiUrl =
+            process.env.NODE_ENV === "development"
+              ? "http://localhost:8888/api/process-commits"
+              : "/api/process-commits";
+
           console.log(`Calling commits processing endpoint at: ${apiUrl}`);
-          
+
           // Call the background function directly with the full URL
           await axios.post(apiUrl, {
             githubUrl: input.githubUrl,
