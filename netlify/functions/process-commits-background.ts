@@ -244,8 +244,3 @@ export default async (request: Request) => {
     );
   }
 };
-
-// Configure the function path
-export const config: Config = {
-  path: "/api/process-commits",
-};

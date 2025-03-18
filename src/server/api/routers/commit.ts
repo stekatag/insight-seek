@@ -55,25 +55,27 @@ export const commitRouter = createTRPCRouter({
         }
       } catch (error) {
         console.error("Error fetching GitHub token:", error);
-        // Continue without token if we can't get it
       }
 
       try {
-        // Determine the proper URL for the API
-        // Using the complete path for axios is crucial for both server & client environments
-        const apiUrl =
+        // This is the most common pattern for axios that works in both server and client contexts
+        console.log("Calling commits processing endpoint");
+
+        // For server-side execution, we need absolute URLs
+        const baseUrl =
           process.env.NODE_ENV === "development"
-            ? "http://localhost:8888/api/process-commits"
-            : "/api/process-commits";
+            ? "http://localhost:8888"
+            : "https://insightseek.vip";
 
-        console.log(`Calling commits processing endpoint at: ${apiUrl}`);
-
-        // Call the background function to process commits with correct URL
-        const response = await axios.post(apiUrl, {
-          githubUrl,
-          projectId,
-          githubToken,
-        });
+        // Use a simple axios.post() call with absolute URL
+        await axios.post(
+          `${baseUrl}/.netlify/functions/process-commits-background`,
+          {
+            githubUrl,
+            projectId,
+            githubToken,
+          },
+        );
 
         return {
           success: true,
@@ -81,7 +83,9 @@ export const commitRouter = createTRPCRouter({
         };
       } catch (error) {
         console.error("Failed to process commits:", error);
-        throw new Error("Failed to process commits");
+        throw new Error(
+          `Failed to process commits: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     }),
 });
