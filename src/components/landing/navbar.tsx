@@ -30,6 +30,11 @@ interface RouteProps {
   label: string;
 }
 
+// Add currentPath prop with default value
+interface NavbarProps {
+  currentPath?: string;
+}
+
 const routeList: RouteProps[] = [
   {
     href: "#features",
@@ -48,33 +53,34 @@ const routeList: RouteProps[] = [
 // Authentication routes for signed in users
 const signedInRoutes: (RouteProps & { variant?: "ghost" | "default" })[] = [
   {
+    href: "/dashboard",
+    label: "Dashboard",
+    variant: "default",
+  },
+  {
     href: "#",
     label: "Sign Out",
     variant: "ghost",
     // This will be handled specially with onClick
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    variant: "default",
   },
 ];
 
 // Authentication routes for signed out users
 const signedOutRoutes: (RouteProps & { variant?: "ghost" | "default" })[] = [
   {
-    href: "/sign-in",
-    label: "Sign In",
-    variant: "ghost",
-  },
-  {
     href: "/sign-up",
     label: "Get Started",
     variant: "default",
   },
+  {
+    href: "/sign-in",
+    label: "Sign In",
+    variant: "ghost",
+  },
 ];
 
-export const Navbar = () => {
+// Modified the component to accept currentPath prop
+export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const { signOut } = useClerk();
 
@@ -82,6 +88,12 @@ export const Navbar = () => {
   const handleSignOut = (e: React.MouseEvent) => {
     e.preventDefault();
     signOut();
+  };
+
+  // Helper function to adjust link hrefs when on non-home pages
+  const getHref = (href: string) => {
+    if (currentPath === "/") return href;
+    return href.startsWith("#") ? "/" + href : href;
   };
 
   return (
@@ -127,7 +139,7 @@ export const Navbar = () => {
                     variant="ghost"
                     className="justify-start text-base"
                   >
-                    <Link href={href}>{label}</Link>
+                    <Link href={getHref(href)}>{label}</Link>
                   </Button>
                 ))}
 
@@ -203,7 +215,7 @@ export const Navbar = () => {
           <NavigationMenuItem>
             {routeList.map(({ href, label }) => (
               <NavigationMenuLink key={href} asChild>
-                <Link href={href}>
+                <Link href={getHref(href)}>
                   <Button variant="ghost">{label}</Button>
                 </Link>
               </NavigationMenuLink>

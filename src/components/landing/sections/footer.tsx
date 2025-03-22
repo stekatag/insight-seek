@@ -5,7 +5,20 @@ import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { Separator } from "@/components/ui/separator";
 import ApplicationLogo from "@/components/application-logo";
 
-export const FooterSection = () => {
+// Add isStandalonePage prop with default value
+interface FooterSectionProps {
+  isStandalonePage?: boolean;
+}
+
+export const FooterSection = ({
+  isStandalonePage = false,
+}: FooterSectionProps) => {
+  // Helper function to get correct href based on current page
+  const getHref = (href: string) => {
+    if (!isStandalonePage || !href.startsWith("#")) return href;
+    return "/" + href;
+  };
+
   return (
     <footer id="footer" className="container py-14 sm:py-20">
       <div className="p-6 sm:p-10 bg-card border border-secondary rounded-2xl">
@@ -26,20 +39,26 @@ export const FooterSection = () => {
           <div className="flex flex-col gap-2">
             <h3 className="font-bold text-lg">Navigation</h3>
             <div>
-              <Link href="#features" className="opacity-60 hover:opacity-100">
+              <Link
+                href={getHref("#features")}
+                className="opacity-60 hover:opacity-100"
+              >
                 Features
               </Link>
             </div>
             <div>
               <Link
-                href="#testimonials"
+                href={getHref("#testimonials")}
                 className="opacity-60 hover:opacity-100"
               >
                 Testimonials
               </Link>
             </div>
             <div>
-              <Link href="#contact" className="opacity-60 hover:opacity-100">
+              <Link
+                href={getHref("#contact")}
+                className="opacity-60 hover:opacity-100"
+              >
                 Contact
               </Link>
             </div>
@@ -93,7 +112,10 @@ export const FooterSection = () => {
             >
               Stefan Gogov
             </Link>
-            . All rights reserved.
+            . All rights reserved.{" "}
+            <Link href="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <Link

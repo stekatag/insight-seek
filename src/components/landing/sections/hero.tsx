@@ -27,7 +27,7 @@ export const HeroSection = () => {
             </h1>
           </div>
 
-          <p className="max-w-screen-sm mx-auto text-xl text-muted-foreground">
+          <p className="max-w-screen-sm mx-auto text-xl text-muted-foreground dark:text-gray-400">
             {`Understand your GitHub repositories and team meetings with AI-powered insights. 
             Ask questions about your code, analyze commits, and extract actionable insights from meetings.`}
           </p>

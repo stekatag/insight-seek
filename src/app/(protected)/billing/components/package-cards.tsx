@@ -43,42 +43,42 @@ export function PackageCards({
         <Card
           key={pkg.id}
           className={cn(
-            "relative flex flex-col overflow-hidden transition-all hover:shadow-md",
+            "relative flex flex-col overflow-hidden transition-all hover:shadow-md border border-secondary",
             pkg.highlighted &&
               "scale-[1.02] border-primary shadow-md ring-1 ring-primary",
           )}
         >
           {pkg.popular && (
-            <div className="absolute right-1 top-1 z-10">
-              <div className="rounded-xl bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+            <div className="absolute right-2 top-2 z-10">
+              <Badge
+                variant="default"
+                className="bg-primary px-2 sm:px-3 py-1 text-xs font-medium"
+              >
                 Most Popular
-              </div>
+              </Badge>
             </div>
           )}
 
-          <CardHeader className="flex-none">
-            <CardTitle className="flex items-center">
-              <span>{pkg.name}</span>
+          <CardHeader>
+            <CardTitle className="text-lg sm:text-xl">{pkg.name}</CardTitle>
+            <div className="flex flex-wrap items-baseline gap-1 sm:gap-2 mt-2">
+              <span className="text-2xl sm:text-3xl font-bold">
+                ${pkg.price}
+              </span>
+              {pkg.regularPrice && (
+                <span className="text-muted-foreground line-through text-sm">
+                  ${pkg.regularPrice}
+                </span>
+              )}
               {pkg.discount && (
                 <Badge
                   variant="outline"
-                  className="ml-2 bg-green-50 text-green-700"
+                  className="bg-green-50 text-green-700 ml-auto text-xs"
                 >
                   {pkg.discount}
                 </Badge>
               )}
-            </CardTitle>
-            <CardDescription>
-              <div className="mt-1 flex items-baseline">
-                <span className="text-3xl font-bold">${pkg.price}</span>
-                {pkg.regularPrice && (
-                  <span className="ml-2 text-sm text-muted-foreground line-through">
-                    ${pkg.regularPrice}
-                  </span>
-                )}
-                <span className="ml-1 text-muted-foreground">/ one-time</span>
-              </div>
-            </CardDescription>
+            </div>
           </CardHeader>
 
           <CardContent className="flex-grow">
