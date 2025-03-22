@@ -191,7 +191,6 @@ export default function CommitLog() {
   }, [commits, hasPendingSummaries, refetch]);
 
   // Check if we need to load commits initially or refresh them
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const shouldCheck = projectId && project?.githubUrl;
     if (!shouldCheck) return;

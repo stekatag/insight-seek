@@ -10,6 +10,7 @@ const bodyParser = z.object({
   githubUrl: z.string(),
   projectId: z.string(),
   githubToken: z.string().optional(),
+  isProjectCreation: z.boolean().optional(),
 });
 
 /**
@@ -91,6 +92,7 @@ async function processSingleCommit(
   projectId: string,
   githubUrl: string,
   githubToken?: string,
+  isProjectCreation = false, // New parameter to indicate if this is during project creation
 ) {
   try {
     // Parse GitHub URL to get owner and repo
@@ -118,18 +120,21 @@ async function processSingleCommit(
     // Generate summary using AI
     const summary = await aiSummarizeCommit(diffData);
 
+    // For project creation, we don't need to reindex since files are already indexed
+    const needsReindex = isProjectCreation ? false : modifiedFiles.length > 0;
+
     // Update commit with summary and modified files in database
     await db.commit.updateMany({
       where: { projectId, commitHash },
       data: {
         summary: summary || "No significant changes detected",
         modifiedFiles,
-        needsReindex: modifiedFiles.length > 0, // Mark for reindexing if files were modified
+        needsReindex: needsReindex, // Don't mark for reindexing if this is during project creation
       },
     });
 
     console.log(
-      `Successfully processed commit ${commitHash} with ${modifiedFiles.length} modified files`,
+      `Successfully processed commit ${commitHash} with ${modifiedFiles.length} modified files. Reindexing needed: ${needsReindex}`,
     );
     return summary;
   } catch (error) {
@@ -295,7 +300,12 @@ export default async (request: Request) => {
 
     const { githubUrl, projectId, githubToken } = bodyParser.parse(body);
 
-    console.log(`🚀 Processing commits for project ${projectId}`);
+    // New parameter to check if this is during project creation
+    const isProjectCreation = body.isProjectCreation === true;
+
+    console.log(
+      `Processing commits for project ${projectId}${isProjectCreation ? " (during project creation)" : ""}`,
+    );
 
     // Return a quick response to the client
     const response = new Response(
@@ -361,6 +371,7 @@ export default async (request: Request) => {
             projectId,
             githubUrl,
             githubToken,
+            isProjectCreation,
           );
         } catch (err) {
           console.error(`Failed to process commit ${commit.commitHash}:`, err);

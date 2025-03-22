@@ -118,9 +118,27 @@ export default function ProjectCreationCard({
 
   // Project creation mutation
   const createProject = api.project.createProject.useMutation({
-    onSuccess: (project) => {
+    onSuccess: async (project) => {
       // Store the newly created project ID in localStorage
       localStorage.setItem("lastCreatedProject", project.id);
+
+      try {
+        // Call the process-commits API with the isProjectCreation flag
+        await fetch("/api/process-commits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId: project.id,
+            githubUrl: project.githubUrl,
+            isProjectCreation: true, // Add this flag
+          }),
+        });
+      } catch (error) {
+        console.error("Error processing commits:", error);
+        // Don't show an error toast as it might confuse the user
+      }
 
       toast.success("Project created successfully!");
       onSuccess(project.id);
