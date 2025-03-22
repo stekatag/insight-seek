@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { ExternalLink, RefreshCw, Sparkles } from "lucide-react";
+import {
+  CreditCard,
+  ExternalLink,
+  FileCode,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
@@ -15,6 +21,8 @@ import {
   TRUNCATION_LIMITS,
 } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
+import useRefetch from "@/hooks/use-refetch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,6 +31,8 @@ export default function CommitLog() {
   const { projectId, project } = useProject();
   const [hasPendingSummaries, setHasPendingSummaries] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  const [isReindexing, setIsReindexing] = useState(false);
+  const globalRefetch = useRefetch();
 
   // Calculate dynamic refetch interval based on pending summaries
   const refetchInterval = hasPendingSummaries
@@ -31,7 +41,7 @@ export default function CommitLog() {
 
   // Fetch commits using TRPC
   const {
-    data: commits,
+    data: commitsData,
     refetch,
     isLoading,
   } = api.commit.getCommits.useQuery(
@@ -43,6 +53,13 @@ export default function CommitLog() {
     },
   );
 
+  // Destructure commit data
+  const commits = commitsData?.commits || [];
+  const reindexMetadata = commitsData?.reindexMetadata || {
+    commitCount: 0,
+    fileCount: 0,
+  };
+
   // Process commits mutation - centralized in the commit router
   const processCommitsMutation = api.commit.processCommits.useMutation({
     onSuccess: async (result) => {
@@ -50,7 +67,6 @@ export default function CommitLog() {
 
       try {
         // Make the direct fetch to the background function from the client side
-        // This avoids issues with server-side API calls
         await fetch("/api/process-commits", {
           method: "POST",
           headers: {
@@ -59,7 +75,6 @@ export default function CommitLog() {
           body: JSON.stringify({
             projectId: result.data.projectId,
             githubUrl: result.data.githubUrl,
-            githubToken: result.data.githubToken,
           }),
         });
 
@@ -77,6 +92,78 @@ export default function CommitLog() {
     },
     onError: (error) => {
       toast.error("Failed to refresh commits: " + error.message);
+    },
+  });
+
+  // New mutation for confirming reindexing
+  const confirmReindexMutation = api.commit.confirmReindex.useMutation({
+    onSuccess: async (result) => {
+      toast.success("Starting reindexing process...");
+      setIsReindexing(true);
+
+      try {
+        // Call the background function to actually perform the reindexing
+        const response = await fetch("/api/reindex-commits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId: result.data.projectId,
+            githubUrl: result.data.githubUrl,
+            commitIds: result.data.commitIds,
+          }),
+        });
+
+        // Check if the request was successful
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        // Set a timer to check status periodically
+        const checkInterval = setInterval(async () => {
+          try {
+            const { data } = await refetch();
+            // If no more commits need reindexing, stop checking
+            if (!data?.reindexMetadata?.commitCount) {
+              clearInterval(checkInterval);
+              setIsReindexing(false);
+              toast.success("Reindexing completed successfully!");
+
+              // Trigger global refetch to update credits
+              globalRefetch();
+            }
+          } catch (error) {
+            console.error("Error checking reindex status:", error);
+            clearInterval(checkInterval);
+            setIsReindexing(false);
+            toast.error("Error checking reindex status");
+          }
+        }, 5000);
+
+        // Safety cleanup after 10 minutes
+        setTimeout(
+          () => {
+            clearInterval(checkInterval);
+            if (isReindexing) {
+              setIsReindexing(false);
+              refetch();
+              globalRefetch();
+              toast.info("Reindexing timed out. Please check the status.");
+            }
+          },
+          10 * 60 * 1000,
+        );
+      } catch (error) {
+        console.error("Error calling reindex function:", error);
+        setIsReindexing(false);
+        toast.error("Failed to start reindexing process.");
+        refetch();
+      }
+    },
+    onError: (error) => {
+      toast.error("Failed to confirm reindexing: " + error.message);
+      setIsReindexing(false);
     },
   });
 
@@ -127,6 +214,27 @@ export default function CommitLog() {
     });
   };
 
+  // Handle reindex confirmation
+  const handleConfirmReindex = () => {
+    if (!projectId || !project?.githubUrl) return;
+
+    confirmReindexMutation.mutate({
+      projectId,
+      githubUrl: project.githubUrl,
+    });
+  };
+
+  // Add the credits query
+  const { data: creditsData, isLoading: isLoadingCredits } =
+    api.user.getMyCredits.useQuery(undefined, {
+      refetchOnWindowFocus: false,
+      staleTime: 60000, // 1 minute
+    });
+
+  const userCredits = creditsData?.credits || 0;
+  const creditsNeeded = reindexMetadata.fileCount * 2;
+  const hasEnoughCredits = userCredits >= creditsNeeded;
+
   // Return null if no project
   if (!projectId) return null;
 
@@ -167,6 +275,116 @@ export default function CommitLog() {
   // Render commits list
   return (
     <>
+      {/* Reindexing Alert */}
+      {reindexMetadata.commitCount > 0 && !isReindexing && (
+        <Alert variant="info" className="mb-4">
+          <AlertTitle className="text-base font-semibold">
+            Codebase Updates Available
+          </AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <p>
+              There {reindexMetadata.commitCount === 1 ? "is" : "are"}{" "}
+              <span className="font-medium">{reindexMetadata.commitCount}</span>{" "}
+              commit
+              {reindexMetadata.commitCount !== 1 && "s"} with{" "}
+              <span className="font-medium">{reindexMetadata.fileCount}</span>{" "}
+              modified file
+              {reindexMetadata.fileCount !== 1 && "s"} that need to be reindexed
+              to keep your codebase up-to-date.
+            </p>
+            <div className="mt-1 flex flex-col gap-2 rounded-md bg-blue-100 p-3 text-sm dark:bg-blue-900/30">
+              <div className="flex items-start gap-2">
+                <FileCode className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <p>
+                  This will use{" "}
+                  <span className="font-semibold">{creditsNeeded} credits</span>{" "}
+                  (2 credits per file).
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <CreditCard className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <div>
+                  Your current balance:{" "}
+                  {isLoadingCredits ? (
+                    <Spinner size="small" className="inline" />
+                  ) : (
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        !hasEnoughCredits && "text-red-600 dark:text-red-400",
+                      )}
+                    >
+                      {userCredits} credits
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {hasEnoughCredits ? (
+              <Button
+                onClick={handleConfirmReindex}
+                disabled={confirmReindexMutation.isPending}
+                className="mt-1 self-start"
+                size="sm"
+                variant="secondary"
+              >
+                {confirmReindexMutation.isPending ? (
+                  <>
+                    <Spinner size="small" className="text-white" />
+                    Confirming...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className=" h-3.5 w-3.5" />
+                    Reindex Files
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="flex flex-col gap-2 mt-1">
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  You don't have enough credits to reindex these files.
+                </p>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="secondary"
+                  className="self-start"
+                >
+                  <Link href="/billing">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Buy Credits
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Reindexing Progress Alert */}
+      {isReindexing && (
+        <Alert variant="info" className="mb-4">
+          <AlertTitle className="text-base font-semibold flex items-center gap-2">
+            <Spinner
+              size="small"
+              className="text-blue-600 dark:text-blue-400"
+            />
+            Reindexing in Progress
+          </AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <p>
+              We're updating your codebase with the changes from{" "}
+              <span className="font-medium">{reindexMetadata.commitCount}</span>{" "}
+              commit
+              {reindexMetadata.commitCount !== 1 && "s"}. This might take a few
+              minutes.
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
         <h2 className="text-xl font-semibold">
           Recent Commits
@@ -200,7 +418,7 @@ export default function CommitLog() {
         </div>
       </div>
 
-      {/* Actual commits list - no changes needed here */}
+      {/* Actual commits list */}
       <ul role="list" className="space-y-6">
         {commits.map((commit, commitIdx) => (
           <li key={commit.id} className="relative flex gap-x-2 sm:gap-x-4">
@@ -265,6 +483,17 @@ export default function CommitLog() {
               ) : (
                 <div className="break-words text-sm leading-6 text-secondary-foreground/70 dark:text-secondary-foreground/50">
                   {formatCodeFragments(commit.summary || "Summary unavailable")}
+                </div>
+              )}
+
+              {/* Show modified files indicator if needed */}
+              {commit.needsReindex && commit.modifiedFiles?.length > 0 && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-amber-500">
+                  <FileCode className="h-3.5 w-3.5" />
+                  <span>
+                    {commit.modifiedFiles.length} modified file
+                    {commit.modifiedFiles.length !== 1 && "s"} need reindexing
+                  </span>
                 </div>
               )}
             </div>

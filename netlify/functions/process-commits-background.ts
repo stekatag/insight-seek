@@ -109,16 +109,28 @@ async function processSingleCommit(
 
     const diffData = data as unknown as string;
 
+    // Extract modified files from the diff
+    const modifiedFiles = extractModifiedFiles(diffData);
+    console.log(
+      `Extracted ${modifiedFiles.length} modified files from commit ${commitHash}`,
+    );
+
     // Generate summary using AI
     const summary = await aiSummarizeCommit(diffData);
 
-    // Update commit with summary in database
+    // Update commit with summary and modified files in database
     await db.commit.updateMany({
       where: { projectId, commitHash },
-      data: { summary: summary || "No significant changes detected" },
+      data: {
+        summary: summary || "No significant changes detected",
+        modifiedFiles,
+        needsReindex: modifiedFiles.length > 0, // Mark for reindexing if files were modified
+      },
     });
 
-    console.log(`Successfully processed commit ${commitHash}`);
+    console.log(
+      `Successfully processed commit ${commitHash} with ${modifiedFiles.length} modified files`,
+    );
     return summary;
   } catch (error) {
     console.error(`Error processing commit ${commitHash}:`, error);
@@ -131,6 +143,143 @@ async function processSingleCommit(
 
     throw error;
   }
+}
+
+// Helper function to extract modified files from git diff
+function extractModifiedFiles(diffContent: string): string[] {
+  if (!diffContent || typeof diffContent !== "string") {
+    console.error("Invalid diff content:", diffContent);
+    return [];
+  }
+
+  console.log("Analyzing diff content for file changes...");
+
+  const modifiedFiles = new Set<string>();
+
+  // More robust regex for file detection
+  // This regex captures file paths from multiple diff formats
+  const diffFileRegex = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  const fileHeaderRegex = /^(\+\+\+|---) [ab]\/(.+?)$/gm;
+
+  // Check for files using the standard git diff format
+  let match;
+  while ((match = diffFileRegex.exec(diffContent)) !== null) {
+    if (match[2]) {
+      const path = match[2].trim();
+      console.log(`Found modified file (diff format): ${path}`);
+
+      if (shouldProcessFile(path)) {
+        modifiedFiles.add(path);
+        console.log(`Added file to reindex: ${path}`);
+      } else {
+        console.log(`Skipped file (filtered): ${path}`);
+      }
+    }
+  }
+
+  // Also check for files using the unified diff format
+  while ((match = fileHeaderRegex.exec(diffContent)) !== null) {
+    if (match[2]) {
+      const path = match[2].trim();
+      console.log(`Found modified file (header format): ${path}`);
+
+      if (shouldProcessFile(path)) {
+        modifiedFiles.add(path);
+        console.log(`Added file to reindex: ${path}`);
+      } else {
+        console.log(`Skipped file (filtered): ${path}`);
+      }
+    }
+  }
+
+  // Manual check - this is for debugging
+  if (modifiedFiles.size === 0) {
+    console.log(
+      "No files detected with standard patterns, checking raw diff...",
+    );
+
+    // Log the first 500 chars of diff for debugging
+    console.log("Diff content sample:", diffContent.substring(0, 500) + "...");
+
+    // Try to identify any paths that look like file paths
+    const possibleFilePaths = diffContent.match(
+      /[a-zA-Z0-9_\-/.]+\.[a-zA-Z0-9]{1,5}/g,
+    );
+    if (possibleFilePaths) {
+      console.log("Possible file paths found:", possibleFilePaths);
+    }
+  }
+
+  const files = Array.from(modifiedFiles);
+  console.log(`Total files to reindex: ${files.length}`);
+  return files;
+}
+
+// Helper to determine if a file should be processed
+function shouldProcessFile(filePath: string): boolean {
+  // Skip binary files, images, etc.
+  const excludedExtensions = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".ttf",
+    ".woff",
+    ".woff2",
+    ".eot",
+    ".mp3",
+    ".mp4",
+    ".webm",
+    ".pdf",
+    ".zip",
+    ".tar.gz",
+    ".jar",
+    ".exe",
+    ".bin",
+  ];
+
+  // Skip configuration files, lock files, etc.
+  const excludedFilePatterns = [
+    "package-lock.json",
+    "yarn.lock",
+    ".gitignore",
+    ".env",
+    "node_modules/",
+    "dist/",
+    "build/",
+    ".next/",
+    "out/",
+  ];
+
+  // Check excluded extensions
+  if (excludedExtensions.some((ext) => filePath.toLowerCase().endsWith(ext))) {
+    console.log(`File ${filePath} excluded due to extension`);
+    return false;
+  }
+
+  // Check excluded patterns
+  if (excludedFilePatterns.some((pattern) => filePath.includes(pattern))) {
+    console.log(`File ${filePath} excluded due to pattern match`);
+    return false;
+  }
+
+  // Use the same criteria as in github-loader.ts
+  if (
+    filePath.endsWith(".min.js") ||
+    filePath.endsWith(".min.css") ||
+    filePath.includes("node_modules/") ||
+    filePath.includes("dist/") ||
+    filePath.includes("build/") ||
+    filePath.includes(".next/")
+  ) {
+    console.log(`File ${filePath} excluded due to standard filters`);
+    return false;
+  }
+
+  console.log(`File ${filePath} passed all filters`);
+  return true;
 }
 
 /**

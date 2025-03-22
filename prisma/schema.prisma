@@ -174,8 +174,10 @@ model Commit {
     commitDate    DateTime
     // AI Summary - now optional to fix insertion errors
     summary       String?
+    modifiedFiles String[] // Array of file paths
+    needsReindex Boolean @default(false)
 
-    @@unique([projectId, commitHash])
+    @@unique([projectId, commitHash]) 
 }
 
 model StripeTransaction {

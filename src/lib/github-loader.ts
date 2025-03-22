@@ -465,3 +465,151 @@ async function generateEmbeddings(docs: Document[]) {
   // Filter out any failed embeddings
   return results.filter(Boolean);
 }
+
+/**
+ * Index specific files from a repository after commit changes
+ */
+export async function indexFilesFromCommits(
+  projectId: string,
+  githubUrl: string,
+  branch: string,
+  filePaths: string[],
+  githubToken?: string,
+): Promise<boolean> {
+  try {
+    console.log(
+      `Starting to index ${filePaths.length} modified files from repository: ${githubUrl} (branch: ${branch}) for project ${projectId}`,
+    );
+
+    if (filePaths.length === 0) {
+      console.log("No files to reindex");
+      return true;
+    }
+
+    // Parse GitHub URL
+    const urlPattern = /github\.com\/([^\/]+)\/([^\/]+)/i;
+    const match = githubUrl.match(urlPattern);
+
+    if (!match) {
+      throw new Error("Invalid GitHub URL format");
+    }
+
+    const owner = match[1];
+    let repo = match[2];
+    // @ts-expect-error
+    repo = repo.replace(/\.git$/, "").replace(/\/$/, "");
+
+    // Create octokit instance
+    const octokit = createRobustOctokit(githubToken);
+
+    // Load each file individually
+    const docs = await Promise.all(
+      filePaths.map(async (filePath) => {
+        try {
+          console.log(`Loading file: ${filePath}`);
+
+          // Get the file content from GitHub
+          const { data } = await octokit.rest.repos.getContent({
+            // @ts-expect-error
+            owner,
+            repo,
+            path: filePath,
+            ref: branch,
+          });
+
+          if (!Array.isArray(data) && data.type === "file" && data.content) {
+            // Decode base64 content
+            const content = Buffer.from(data.content, "base64").toString(
+              "utf-8",
+            );
+
+            // Create a Document object
+            return new Document({
+              pageContent: content,
+              metadata: {
+                source: filePath,
+              },
+            });
+          }
+          return null;
+        } catch (error) {
+          console.error(`Error loading file ${filePath}:`, error);
+          return null;
+        }
+      }),
+    );
+
+    // Filter out nulls
+    const validDocs = docs.filter(Boolean) as Document[];
+    console.log(
+      `Successfully loaded ${validDocs.length} out of ${filePaths.length} files`,
+    );
+
+    if (validDocs.length === 0) {
+      return true;
+    }
+
+    // First remove existing embeddings for these files
+    for (const doc of validDocs) {
+      await db.sourceCodeEmbedding.deleteMany({
+        where: {
+          projectId,
+          fileName: doc.metadata.source,
+        },
+      });
+    }
+
+    // Generate embeddings for the files
+    const allEmbeddings = await generateEmbeddings(validDocs);
+
+    // Process all embeddings and save them to the database
+    console.log(
+      `Processing ${allEmbeddings.length} embeddings and saving to database...`,
+    );
+
+    const results = await Promise.allSettled(
+      allEmbeddings.map(async (embedding, index) => {
+        if (!embedding) {
+          console.warn(`Skipping embedding ${index + 1} - no embedding data`);
+          return null;
+        }
+
+        try {
+          // Create the source code embedding record
+          const sourceCodeEmbedding = await db.sourceCodeEmbedding.create({
+            data: {
+              summary: embedding.summary,
+              sourceCode: embedding.sourceCode,
+              fileName: embedding.fileName,
+              projectId,
+            },
+          });
+
+          // Update the vector embedding with raw SQL
+          await db.$executeRaw`
+          UPDATE "SourceCodeEmbedding"
+          SET "summaryEmbedding" = ${embedding.embedding}::vector
+          WHERE "id" = ${sourceCodeEmbedding.id}`;
+
+          return sourceCodeEmbedding.id;
+        } catch (error) {
+          console.error(`Error saving embedding ${index + 1}:`, error);
+          return null;
+        }
+      }),
+    );
+
+    const successCount = results.filter(
+      (r) => r.status === "fulfilled" && r.value,
+    ).length;
+
+    console.log(
+      `Successfully created ${successCount} out of ${allEmbeddings.length} source code embeddings`,
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Error indexing files from commits:", error);
+    throw error;
+  }
+}
