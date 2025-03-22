@@ -299,7 +299,10 @@ export default function GitHubConnectionStatus() {
                       disabled={isVerifying || verifyTokenQuery.isPending}
                     >
                       {isVerifying || verifyTokenQuery.isPending ? (
-                        <Spinner size="small" />
+                        <Spinner
+                          size="small"
+                          className="text-green-700 dark:text-green-400"
+                        />
                       ) : (
                         <RefreshCw className="h-3.5 w-3.5" />
                       )}

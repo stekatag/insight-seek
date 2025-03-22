@@ -496,7 +496,7 @@ export async function indexFilesFromCommits(
 
     const owner = match[1];
     let repo = match[2];
-    // @ts-expect-error
+    // @ts-expect-error - String manipulation on potentially undefined repo is safe here
     repo = repo.replace(/\.git$/, "").replace(/\/$/, "");
 
     // Create octokit instance
@@ -510,7 +510,7 @@ export async function indexFilesFromCommits(
 
           // Get the file content from GitHub
           const { data } = await octokit.rest.repos.getContent({
-            // @ts-expect-error
+            // @ts-expect-error - Owner and repo are guaranteed to be strings by earlier validation
             owner,
             repo,
             path: filePath,

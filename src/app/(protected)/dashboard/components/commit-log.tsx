@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -54,7 +54,10 @@ export default function CommitLog() {
   );
 
   // Destructure commit data
-  const commits = commitsData?.commits || [];
+  const commits = useMemo(
+    () => commitsData?.commits || [],
+    [commitsData?.commits],
+  );
   const reindexMetadata = commitsData?.reindexMetadata || {
     commitCount: 0,
     fileCount: 0,
@@ -188,6 +191,7 @@ export default function CommitLog() {
   }, [commits, hasPendingSummaries, refetch]);
 
   // Check if we need to load commits initially or refresh them
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const shouldCheck = projectId && project?.githubUrl;
     if (!shouldCheck) return;
