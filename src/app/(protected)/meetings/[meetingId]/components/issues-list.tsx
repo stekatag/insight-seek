@@ -5,16 +5,13 @@ import { readStreamableValue } from "ai/rsc";
 import {
   ArrowUpRight,
   CircleAlert,
-  Clock,
   FileText,
   MessageSquare,
-  VideoIcon,
 } from "lucide-react";
 
 import { api, RouterOutputs } from "@/trpc/react";
 import { formatDuration } from "@/lib/format-duration";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -93,38 +90,18 @@ export default function IssuesList({ meetingId }: Props) {
   const issues = meeting.issues;
 
   return (
-    <div className="sm:p-4">
-      {/* Meeting header */}
-      <div className="mb-8 flex flex-col items-start justify-between gap-4 border-b pb-6 sm:flex-row sm:items-center">
-        <div className="flex flex-col items-start gap-4 sm:flex-row">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <VideoIcon className="h-7 w-7 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {meeting.name}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center">
-                <Clock className="mr-1 h-4 w-4" />
-                {new Date(meeting.createdAt).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
-              <Badge variant="outline">
-                {issues.length} {issues.length === 1 ? "issue" : "issues"}{" "}
-                identified
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <>
       {/* Issues grid */}
       {issues.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div
+          className={`grid grid-cols-1 gap-6 ${
+            issues.length === 1
+              ? "md:grid-cols-1"
+              : issues.length === 2
+                ? "md:grid-cols-2"
+                : "md:grid-cols-2 lg:grid-cols-3"
+          }`}
+        >
           {issues.map((issue) => (
             <IssueCard key={issue.id} issue={issue} />
           ))}
@@ -140,7 +117,7 @@ export default function IssuesList({ meetingId }: Props) {
           </p>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

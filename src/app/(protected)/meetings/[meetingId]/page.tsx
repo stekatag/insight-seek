@@ -1,17 +1,41 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { readStreamableValue } from "ai/rsc";
-import { AlertTriangle, ArrowLeft, Clock } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  VideoIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { adaptDatabaseQuestions, Chat } from "@/types/chat";
 import { api } from "@/trpc/react";
 import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import AskQuestionCard from "@/components/chat/ask-question-card";
@@ -24,10 +48,33 @@ import IssuesList from "./components/issues-list";
 
 // Content component using search params
 function MeetingDetailContent() {
+  const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const refetch = useRefetch();
+
+  // Initialize page from URL or default to 1
+  const [currentPage, setCurrentPage] = useState(() => {
+    const pageParam = searchParams.get("page");
+    return pageParam ? parseInt(pageParam, 10) : 1;
+  });
+
+  // Create update function
+  const updatePage = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+
+      // Preserve existing query params like chat id
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", page.toString());
+      router.push(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  // Define items per page constant for meeting chats
+  const MEETING_ITEMS_PER_PAGE = 5;
 
   // Ensure meetingId is properly extracted as a string
   const meetingId = params.meetingId as string;
@@ -136,6 +183,121 @@ function MeetingDetailContent() {
     ],
   );
 
+  // Paginate the meeting chats
+  const paginatedChats = useMemo(() => {
+    if (!chats) return [];
+    const startIndex = (currentPage - 1) * MEETING_ITEMS_PER_PAGE;
+    const endIndex = startIndex + MEETING_ITEMS_PER_PAGE;
+    return chats.slice(startIndex, endIndex);
+  }, [chats, currentPage]);
+
+  // Calculate total pages
+  const totalPages = useMemo(() => {
+    if (!chats) return 1;
+    return Math.ceil((chats?.length || 0) / MEETING_ITEMS_PER_PAGE);
+  }, [chats]);
+
+  // Function to generate pagination items
+  const renderPaginationItems = () => {
+    const items = [];
+
+    // For small number of pages, show all
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(
+          <PaginationItem key={i}>
+            <PaginationLink
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                updatePage(i);
+              }}
+              isActive={currentPage === i}
+            >
+              {i}
+            </PaginationLink>
+          </PaginationItem>,
+        );
+      }
+      return items;
+    }
+
+    // For larger numbers, use a simpler approach
+    items.push(
+      <PaginationItem key={1}>
+        <PaginationLink
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            updatePage(1);
+          }}
+          isActive={currentPage === 1}
+        >
+          1
+        </PaginationLink>
+      </PaginationItem>,
+    );
+
+    // Add ellipsis if not showing page 2
+    if (currentPage > 3) {
+      items.push(
+        <PaginationItem key="ellipsis-start">
+          <PaginationEllipsis />
+        </PaginationItem>,
+      );
+    }
+
+    // Show current page and neighbors
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      items.push(
+        <PaginationItem key={i}>
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              updatePage(i);
+            }}
+            isActive={currentPage === i}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>,
+      );
+    }
+
+    // Add ellipsis if not showing second-to-last page
+    if (currentPage < totalPages - 2) {
+      items.push(
+        <PaginationItem key="ellipsis-end">
+          <PaginationEllipsis />
+        </PaginationItem>,
+      );
+    }
+
+    // Add last page
+    if (totalPages > 1) {
+      items.push(
+        <PaginationItem key={totalPages}>
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              updatePage(totalPages);
+            }}
+            isActive={currentPage === totalPages}
+          >
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>,
+      );
+    }
+
+    return items;
+  };
+
   // Loading state
   if (meetingLoading) {
     return (
@@ -223,60 +385,123 @@ function MeetingDetailContent() {
   // Render actual meeting content
   return (
     <div className="flex h-full flex-col">
-      <div className="container max-w-full pb-4 sm:p-4">
+      <div className="container max-w-full p-0">
         <Link href="/meetings">
-          <Button variant="outline" className="mb-4">
+          <Button variant="outline" className="mb-6">
             <ArrowLeft className="h-4 w-4" /> Back to Meetings
           </Button>
         </Link>
-      </div>
 
-      <div className="container max-w-full grid gap-6 md:grid-cols-4">
-        {/* Sidebar with chat history - on the left */}
-        <div className="hidden md:block">
-          <div className="p-4">
-            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              Conversations
-            </h3>
-            <Separator className="mb-3" />
-            {chatsLoading ? (
-              <div className="flex justify-center py-4">
-                <Spinner size="small" />
+        {/* Meeting header - moved from issues-list */}
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col items-start gap-4 sm:flex-row">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+              <VideoIcon className="h-7 w-7 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                {meeting.name}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span className="flex items-center">
+                  <Clock className="mr-1 h-4 w-4" />
+                  {new Date(meeting.createdAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+                <Badge variant="outline">
+                  {meeting.issues.length}{" "}
+                  {meeting.issues.length === 1 ? "issue" : "issues"} identified
+                </Badge>
               </div>
-            ) : (
-              <ChatList chats={chats || []} variant="sidebar" />
-            )}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Main content area - on the right */}
-        <div className="md:col-span-3">
-          {/* Ask Meeting Card - using the reusable component */}
-          <div className="mb-8">
-            <AskQuestionCard
-              context="meeting"
-              contextId={meetingId}
-              askAction={askMeeting}
-              createChatMutation={async (data) => {
-                return createMeetingChat.mutateAsync({
-                  meetingId: data.meetingId,
-                  projectId: meeting?.projectId || "",
-                  question: data.question,
-                  answer: data.answer,
-                });
-              }}
-              invalidateQueries={async () => {
-                return apiUtils.meetingChat.getMeetingChats.invalidate({
-                  meetingId,
-                });
-              }}
-            />
+      {/* Improved responsive grid layout */}
+      <div className="container max-w-full p-0">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-12">
+          {/* Sidebar with chat history - adjusted column width at different breakpoints */}
+          <div className="col-span-1 lg:col-span-3 xl:col-span-3 2xl:col-span-2">
+            <div className="p-4 bg-card rounded-lg border shadow-sm">
+              <h3 className="mb-3 font-medium">Conversations</h3>
+
+              {chatsLoading ? (
+                <div className="flex justify-center py-4">
+                  <Spinner size="small" />
+                </div>
+              ) : (
+                <>
+                  <ChatList chats={paginatedChats || []} variant="sidebar" />
+
+                  {/* Add pagination if needed */}
+                  {totalPages > 1 && (
+                    <div className="mt-4">
+                      <div className="flex justify-center items-center gap-1 text-xs">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={currentPage === 1}
+                          onClick={() =>
+                            updatePage(Math.max(1, currentPage - 1))
+                          }
+                        >
+                          <ChevronLeft className="h-3 w-3" />
+                        </Button>
+
+                        <span className="text-muted-foreground px-2">
+                          {currentPage} / {totalPages}
+                        </span>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={currentPage === totalPages}
+                          onClick={() =>
+                            updatePage(Math.min(totalPages, currentPage + 1))
+                          }
+                        >
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Meeting Issues Section */}
-          <div className="mt-6">
-            <Separator className="my-6" />
-            <h2 className="text-2xl font-bold mb-6">Meeting Issues</h2>
+          {/* Main content area - adjusted column widths */}
+          <div className="col-span-1 lg:col-span-9 xl:col-span-9 2xl:col-span-10">
+            {/* Ask Meeting Card - using the reusable component */}
+            <div className="mb-8">
+              <AskQuestionCard
+                context="meeting"
+                contextId={meetingId}
+                askAction={askMeeting}
+                createChatMutation={async (data) => {
+                  return createMeetingChat.mutateAsync({
+                    meetingId: data.meetingId,
+                    projectId: meeting?.projectId || "",
+                    question: data.question,
+                    answer: data.answer,
+                  });
+                }}
+                invalidateQueries={async () => {
+                  return apiUtils.meetingChat.getMeetingChats.invalidate({
+                    meetingId,
+                  });
+                }}
+              />
+            </div>
+
+            {/* Meeting Issues Section */}
+            <h2 className="text-2xl font-bold mb-4">Meeting Issues</h2>
             <IssuesList meetingId={meetingId} />
           </div>
         </div>

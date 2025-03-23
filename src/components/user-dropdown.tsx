@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useClerk, useUser } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import {
   ChevronsUpDown,
   CreditCard,
@@ -9,6 +10,7 @@ import {
   PlusCircle,
   User as UserIcon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import { api } from "@/trpc/react";
 import { cn } from "@/lib/utils";
@@ -67,6 +69,9 @@ export default function UserDropdown({
 }: UserDropdownProps) {
   const { user, isLoaded } = useUser();
   const { openUserProfile, signOut } = useClerk();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const baseTheme = isDark ? dark : undefined;
 
   // Fetch user credits data
   const { data: userData, isLoading: isLoadingUser } =
@@ -194,7 +199,15 @@ export default function UserDropdown({
 
         <DropdownMenuSeparator className="my-2" />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => openUserProfile()}>
+          <DropdownMenuItem
+            onClick={() =>
+              openUserProfile({
+                appearance: {
+                  baseTheme: baseTheme,
+                },
+              })
+            }
+          >
             <UserIcon className=" size-4" />
             <span>Manage Account</span>
           </DropdownMenuItem>

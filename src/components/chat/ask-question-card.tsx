@@ -284,7 +284,7 @@ export default function AskQuestionCard({
               onChange={(e) =>
                 dispatch({ type: "SET_QUESTION", payload: e.target.value })
               }
-              className="min-h-[80px] resize-y pr-12"
+              className="min-h-[110px] md:min-h-[80px] resize-y pr-12"
             />
             {state.question && !isLoading && (
               <Button

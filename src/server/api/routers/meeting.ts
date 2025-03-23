@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProdecure } from "../trpc";
+
 import { calculateMeetingCredits } from "@/lib/credits";
+
+import { createTRPCRouter, protectedProdecure } from "../trpc";
 
 export const meetingRouter = createTRPCRouter({
   // Upload a new meeting
@@ -67,22 +69,55 @@ export const meetingRouter = createTRPCRouter({
   deleteMeeting: protectedProdecure
     .input(z.object({ meetingId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const { meetingId } = input;
+
+      // Find the meeting first to verify it exists
+      const meeting = await ctx.db.meeting.findUnique({
+        where: { id: meetingId },
+      });
+
+      if (!meeting) {
+        throw new Error("Meeting not found");
+      }
+
       // Use a transaction to ensure all related data is deleted properly
       return await ctx.db.$transaction(async (tx) => {
-        // 1. First delete all related issues
+        // 1. First find all chats associated with this meeting
+        const chats = await tx.chat.findMany({
+          where: { meetingId },
+          select: { id: true },
+        });
+
+        // 2. Delete all questions related to these chats
+        if (chats.length > 0) {
+          await tx.question.deleteMany({
+            where: {
+              chatId: { in: chats.map((chat) => chat.id) },
+            },
+          });
+        }
+
+        // 3. Delete the chats themselves
+        await tx.chat.deleteMany({
+          where: { meetingId },
+        });
+
+        // 4. Delete all related issues
         await tx.issue.deleteMany({
-          where: { meetingId: input.meetingId },
+          where: { meetingId },
         });
 
-        // 2. Delete all related meeting embeddings
+        // 5. Delete all related meeting embeddings
         await tx.meetingEmbedding.deleteMany({
-          where: { meetingId: input.meetingId },
+          where: { meetingId },
         });
 
-        // 3. Finally delete the meeting itself
-        return await tx.meeting.delete({
-          where: { id: input.meetingId },
+        // 6. Finally delete the meeting itself
+        await tx.meeting.delete({
+          where: { id: meetingId },
         });
+
+        return { success: true };
       });
     }),
 

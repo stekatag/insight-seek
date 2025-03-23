@@ -1,13 +1,29 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { readStreamableValue } from "ai/rsc";
 import { toast } from "sonner";
 
 import { adaptDatabaseQuestions, Chat } from "@/types/chat";
 import { api } from "@/trpc/react";
 import useProject from "@/hooks/use-project";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import AskQuestionCard from "@/components/chat/ask-question-card";
 import { ChatProvider, useChatContext } from "@/components/chat/chat-context";
 import ChatDialog from "@/components/chat/chat-dialog";
@@ -20,12 +36,23 @@ import GitBranchName from "@/components/git-branch-name";
 import { ProjectSelector } from "@/components/project-selector";
 import { askQuestion } from "@/app/(protected)/dashboard/actions";
 
+// Define items per page
+const ITEMS_PER_PAGE = 10;
+
 function QAContent() {
   const { project, projectId } = useProject();
   const hasProject = !!project;
-  const messagesEndRef = useRef<HTMLDivElement>(null); // No longer nullable
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { state, openDialog, addFollowUpOptimistically } = useChatContext();
+  const apiUtils = api.useUtils();
+
+  // Initialize page from URL or default to 1
+  const [currentPage, setCurrentPage] = useState(() => {
+    const pageParam = searchParams.get("page");
+    return pageParam ? parseInt(pageParam, 10) : 1;
+  });
 
   // Efficiently store chat lookup with proper typing
   const chatLookup = useRef<Map<string, Chat>>(new Map());
@@ -39,21 +66,42 @@ function QAContent() {
     },
   );
 
-  // Update the chat lookup when chats change
+  // Make sure we only show codebase chats (no meetingId)
+  const codebaseChats = useMemo(() => {
+    if (!chats) return [];
+    // Simple filter is sufficient now
+    return chats.filter((chat) => !chat.meetingId);
+  }, [chats]);
+
+  // Paginate the chats
+  const paginatedChats = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return codebaseChats.slice(startIndex, endIndex);
+  }, [codebaseChats, currentPage]);
+
+  // Calculate total pages
+  const totalPages = useMemo(() => {
+    return Math.ceil(codebaseChats.length / ITEMS_PER_PAGE);
+  }, [codebaseChats.length]);
+
+  // Update the chat lookup to only include codebase chats
   useEffect(() => {
     if (!chats) return;
 
     chatLookup.current.clear();
     chats.forEach((chat) => {
-      // Convert database chat to Chat type using chatFromDatabase helper
-      const adaptedChat: Chat = {
-        ...chat,
-        questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
-          ...q,
-          answerLoading: false,
-        })),
-      };
-      chatLookup.current.set(chat.id, adaptedChat);
+      // Only process chats without a meetingId
+      if (!chat.meetingId) {
+        const adaptedChat: Chat = {
+          ...chat,
+          questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+            ...q,
+            answerLoading: false,
+          })),
+        };
+        chatLookup.current.set(chat.id, adaptedChat);
+      }
     });
   }, [chats]);
 
@@ -87,9 +135,120 @@ function QAContent() {
   // API mutations
   const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
   const createChat = api.qa.createChat.useMutation();
-  const apiUtils = api.useUtils();
 
-  // Simplified follow-up submission handler without streaming
+  // Create a function to update page with URL
+  const updatePage = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+
+      // Update URL without full navigation
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", page.toString());
+      router.push(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  // Create function to generate page links
+  const renderPaginationItems = () => {
+    const items = [];
+
+    // For small number of pages, show all
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(
+          <PaginationItem key={i}>
+            <PaginationLink
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                updatePage(i);
+              }}
+              isActive={currentPage === i}
+            >
+              {i}
+            </PaginationLink>
+          </PaginationItem>,
+        );
+      }
+      return items;
+    }
+
+    // For larger numbers, use a simpler approach
+    items.push(
+      <PaginationItem key={1}>
+        <PaginationLink
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            updatePage(1);
+          }}
+          isActive={currentPage === 1}
+        >
+          1
+        </PaginationLink>
+      </PaginationItem>,
+    );
+
+    // Add ellipsis if not showing page 2
+    if (currentPage > 3) {
+      items.push(
+        <PaginationItem key="ellipsis-start">
+          <PaginationEllipsis />
+        </PaginationItem>,
+      );
+    }
+
+    // Show current page and neighbors
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      items.push(
+        <PaginationItem key={i}>
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              updatePage(i);
+            }}
+            isActive={currentPage === i}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>,
+      );
+    }
+
+    // Add ellipsis if not showing second-to-last page
+    if (currentPage < totalPages - 2) {
+      items.push(
+        <PaginationItem key="ellipsis-end">
+          <PaginationEllipsis />
+        </PaginationItem>,
+      );
+    }
+
+    // Add last page
+    items.push(
+      <PaginationItem key={totalPages}>
+        <PaginationLink
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            updatePage(totalPages);
+          }}
+          isActive={currentPage === totalPages}
+        >
+          {totalPages}
+        </PaginationLink>
+      </PaginationItem>,
+    );
+
+    return items;
+  };
+
+  // The followup submission handler
   const submitFollowUpQuestion = useCallback(
     async (question: string) => {
       if (!project?.id || !question.trim()) return;
@@ -98,60 +257,36 @@ function QAContent() {
         const { activeChat } = state;
         if (!activeChat) return;
 
-        // First check if this question is already being processed or answered
-        const isQuestionAlreadyProcessed = activeChat.questions.some(
-          (q) => q.question === question,
-        );
-
-        const isQuestionAlreadyInProgress = activeChat.questions.some(
-          (q) => q.question === question && q.answer === "Getting answer...",
-        );
-
-        if (isQuestionAlreadyProcessed && !isQuestionAlreadyInProgress) {
-          console.log("Question already answered");
-          return;
-        }
-
-        if (isQuestionAlreadyInProgress) {
-          console.log("Question already being processed");
-          return;
-        }
-
-        // Add optimistic update immediately
+        // Add optimistic update
         addFollowUpOptimistically(question, "Getting answer...", []);
 
-        try {
-          // Fetch complete answer without streaming updates
-          const { output, filesReferences = [] } = await askQuestion(
-            question,
-            project.id,
-          );
+        // Get complete answer without streaming updates
+        const { output, filesReferences } = await askQuestion(
+          question,
+          project.id,
+        );
 
-          // Collect full answer without UI updates
-          let fullAnswer = "";
-          for await (const delta of readStreamableValue(output)) {
-            if (delta) {
-              fullAnswer += delta;
-            }
+        // Collect full answer
+        let fullAnswer = "";
+        for await (const delta of readStreamableValue(output)) {
+          if (delta) {
+            fullAnswer += delta;
           }
-
-          // Update UI once with the complete answer
-          addFollowUpOptimistically(question, fullAnswer, filesReferences);
-
-          // Save to database in background
-          await addFollowupQuestion.mutateAsync({
-            chatId: activeChat.id,
-            question,
-            answer: fullAnswer,
-            filesReferences,
-          });
-
-          // Refresh chat data
-          await apiUtils.qa.getChats.invalidate({ projectId });
-        } catch (error) {
-          console.error("Failed to save follow-up:", error);
-          toast.error("Failed to save follow-up question to database");
         }
+
+        // Update UI once with the complete answer
+        addFollowUpOptimistically(question, fullAnswer, filesReferences);
+
+        // Save to database
+        await addFollowupQuestion.mutateAsync({
+          chatId: activeChat.id,
+          question,
+          answer: fullAnswer,
+          filesReferences,
+        });
+
+        // Refresh data
+        await apiUtils.qa.getChats.invalidate({ projectId });
       } catch (error) {
         console.error("Failed to process follow-up:", error);
         toast.error("Failed to get answer to follow-up question");
@@ -159,7 +294,7 @@ function QAContent() {
     },
     [
       project?.id,
-      state, // Add missing dependency here
+      state,
       addFollowUpOptimistically,
       addFollowupQuestion,
       apiUtils.qa.getChats,
@@ -214,10 +349,53 @@ function QAContent() {
       </h2>
       <GitBranchName className="mb-4" />
 
-      {!chats?.length ? (
+      {!codebaseChats?.length ? (
         <NoQuestionsEmptyState />
       ) : (
-        <ChatList chats={chats} variant="default" />
+        <>
+          <ChatList chats={paginatedChats} variant="default" />
+
+          {/* Add pagination if there are enough chats */}
+          {totalPages > 1 && (
+            <Pagination className="mt-8">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) {
+                        updatePage(currentPage - 1);
+                      }
+                    }}
+                    className={
+                      currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                    }
+                  />
+                </PaginationItem>
+
+                {renderPaginationItems()}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage < totalPages) {
+                        updatePage(currentPage + 1);
+                      }
+                    }}
+                    className={
+                      currentPage === totalPages
+                        ? "pointer-events-none opacity-50"
+                        : ""
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       )}
 
       <ChatDialog

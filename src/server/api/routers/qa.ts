@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProdecure } from "../trpc";
@@ -122,5 +123,44 @@ export const qaRouter = createTRPCRouter({
         },
         orderBy: { updatedAt: "desc" },
       });
+    }),
+
+  deleteChat: protectedProdecure
+    .input(
+      z.object({
+        chatId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { chatId } = input;
+      const userId = ctx.user.userId!;
+
+      // Get the chat to verify ownership
+      const chat = await ctx.db.chat.findUnique({
+        where: {
+          id: chatId,
+          userId,
+        },
+      });
+
+      // Make sure the chat exists
+      if (!chat) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Chat not found",
+        });
+      }
+
+      // Delete all questions related to this chat
+      await ctx.db.question.deleteMany({
+        where: { chatId },
+      });
+
+      // Delete the chat
+      await ctx.db.chat.delete({
+        where: { id: chatId },
+      });
+
+      return { success: true };
     }),
 });
