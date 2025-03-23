@@ -22,8 +22,8 @@ export default function AuthLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Decorative elements */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
+      {/* Decorative elements - hidden on mobile */}
+      <div className="fixed inset-0 -z-10 overflow-hidden hidden lg:block">
         {/* Top right gradient blob */}
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-primary/20 blur-3xl" />
 
@@ -39,6 +39,9 @@ export default function AuthLayout({
           }}
         />
       </div>
+
+      {/* Simple mobile background - a subtle gradient */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-background to-background/95 lg:hidden" />
 
       {/* Header with logo */}
       <header className="container flex justify-center sm:justify-start pt-6 px-4">
@@ -95,8 +98,8 @@ export default function AuthLayout({
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-sm text-muted-foreground">
-        <p className="text-sm text-muted-foreground mb-4 sm:mb-0">
+      <footer className="p-4 text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground ">
           &copy; {new Date().getFullYear()}{" "}
           <Link
             href="https://sgogov.dev/"

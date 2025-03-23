@@ -15,6 +15,7 @@ export default {
     "text-red-500",
     "text-pink-500",
     "text-orange-500",
+    "!shadow-none",
   ],
   theme: {
     container: {

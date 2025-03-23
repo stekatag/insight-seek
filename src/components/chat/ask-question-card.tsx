@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useReducer } from "react";
 import { useSearchParams } from "next/navigation";
 import { readStreamableValue } from "ai/rsc";
-import { Bot, Sparkles, Undo } from "lucide-react";
+import { Bot, Info, Sparkles, Undo } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { chatReducer, initialChatState } from "@/components/chat/chat-reducer";
+import { getQuestionsByType } from "@/components/chat/predefined-questions";
 
 import { useChatContext } from "./chat-context";
 
@@ -195,23 +196,31 @@ export default function AskQuestionCard({
       ? "Ask about code structure, functionality, or specific files in your project"
       : "Ask about specific topics, get summaries, or analyze the key points discussed";
 
-  // Set default suggested questions if not provided
+  // Get predefined questions based on context
+  const contextType = context === "project" ? "code" : "meeting";
+  const predefinedQs = getQuestionsByType(contextType);
+
+  // Use provided questions or fall back to predefined ones
   const questions =
     suggestedQuestions.length > 0
-      ? suggestedQuestions
-      : context === "project"
-        ? [
-            "How does this code work?",
-            "What is the architecture?",
-            "How can I implement a new feature?",
-            "What are the main components?",
-          ]
-        : [
-            "Summarize this meeting",
-            "What were the key decisions?",
-            "What action items were assigned?",
-            "What challenges were discussed?",
-          ];
+      ? suggestedQuestions.map((text, i) => {
+          // Default icon and color if predefinedQs is empty
+          const defaultIcon = Info;
+          const defaultColor = "text-primary";
+
+          // Safely access the predefined questions array
+          const predefinedQ =
+            predefinedQs.length > 0
+              ? predefinedQs[i % predefinedQs.length]
+              : undefined;
+
+          return {
+            text,
+            icon: predefinedQ?.icon || defaultIcon,
+            color: predefinedQ?.color || defaultColor,
+          };
+        })
+      : predefinedQs;
 
   return (
     <Card className="relative dark:border-secondary">
@@ -239,9 +248,21 @@ export default function AskQuestionCard({
                 variant="outline"
                 size="sm"
                 className="flex h-auto items-center justify-start whitespace-normal border-primary/20 px-3 py-1.5 text-left text-xs"
-                onClick={() => dispatch({ type: "SET_QUESTION", payload: q })}
+                onClick={() =>
+                  dispatch({
+                    type: "SET_QUESTION",
+                    payload: typeof q === "string" ? q : q.text,
+                  })
+                }
               >
-                <span className="line-clamp-2">{q}</span>
+                {typeof q !== "string" && q.icon && (
+                  <q.icon
+                    className={`h-3.5 w-3.5 ${q.color || "text-primary"}`}
+                  />
+                )}
+                <span className="line-clamp-2">
+                  {typeof q === "string" ? q : q.text}
+                </span>
               </Button>
             ))}
           </div>

@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-import axios from "axios";
 import { z } from "zod";
 
 import { isAbortOrTimeoutError } from "@/lib/error-utils";
