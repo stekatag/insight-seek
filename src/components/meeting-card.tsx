@@ -11,6 +11,7 @@ import "react-circular-progressbar/dist/styles.css";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import {
@@ -51,6 +52,7 @@ import { Spinner } from "./ui/spinner";
 export default function MeetingCard() {
   const { project } = useProject();
   const router = useRouter();
+  const { getToken } = useAuth();
 
   const [isUploading, setIsUploading] = useState(false);
   const [showCreditCheck, setShowCreditCheck] = useState(false);
@@ -154,11 +156,32 @@ export default function MeetingCard() {
     setIsUploading(true);
 
     try {
+      // Get Firebase token from Clerk with better error handling
+      let firebaseToken;
+      try {
+        firebaseToken = await getToken({
+          template: "integration_firebase",
+        });
+
+        if (!firebaseToken) {
+          throw new Error("Failed to get Firebase token - token is null");
+        }
+      } catch (error) {
+        console.error("Firebase token error:", error);
+        toast.error(
+          "Authentication failed. Please ensure Firebase integration is enabled in Clerk.",
+        );
+        setIsUploading(false);
+        return;
+      }
+
       // Upload file to Firebase
       const downloadURL = (await uploadFile(
         selectedFile,
         setProgress,
+        firebaseToken,
       )) as string;
+
       setFileUrl(downloadURL);
 
       // Calculate credits to charge

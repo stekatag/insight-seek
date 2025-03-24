@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Trash } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import { signInWithCustomToken } from "firebase/auth";
+import { Trash } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
+import { auth, deleteFile } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,16 +32,57 @@ export default function DeleteMeetingButton({
 }: DeleteMeetingButtonProps) {
   const [open, setOpen] = useState(false);
   const deleteMeeting = api.meeting.deleteMeeting.useMutation();
+  const { getToken } = useAuth();
 
   const handleDelete = async () => {
     try {
-      await deleteMeeting.mutateAsync({ meetingId });
+      // Get Firebase token with better error handling
+      let firebaseToken;
+      try {
+        firebaseToken = await getToken({
+          template: "integration_firebase",
+        });
+
+        if (!firebaseToken) {
+          throw new Error("Failed to get Firebase token - token is null");
+        }
+
+        console.log("Got Firebase token successfully");
+
+        // Sign in to Firebase
+        await signInWithCustomToken(auth, firebaseToken);
+        console.log("Firebase authentication successful");
+      } catch (authError) {
+        console.error("Firebase authentication error:", authError);
+        toast.error("Authentication failed. Please try again.");
+        return;
+      }
+
+      // Delete the meeting in the database
+      const result = await deleteMeeting.mutateAsync({ meetingId });
+
+      // Now delete the file from Firebase Storage
+      try {
+        await deleteFile(result.meetingUrl, firebaseToken);
+        console.log("File deleted successfully from Firebase Storage");
+      } catch (fileError) {
+        console.error(
+          "Failed to delete file from Firebase Storage:",
+          fileError,
+        );
+        toast.error(
+          "Meeting data was deleted but the audio file could not be removed",
+        );
+      }
+
       toast.success("Meeting deleted successfully");
       setOpen(false);
       onDeleteSuccess();
     } catch (error) {
       console.error("Failed to delete meeting:", error);
-      toast.error("Failed to delete meeting. Please try again.");
+      toast.error(
+        "Failed to delete meeting. Some resources may not have been cleaned up properly.",
+      );
     }
   };
 

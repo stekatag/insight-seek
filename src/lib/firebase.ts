@@ -1,11 +1,13 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
+import { getAuth, signInWithCustomToken } from "firebase/auth";
 import {
+  deleteObject,
   getDownloadURL,
   getStorage,
   ref,
   uploadBytesResumable,
 } from "firebase/storage";
+
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -21,15 +23,24 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
 export const storage = getStorage(app);
 
 export async function uploadFile(
   file: File,
   setProgress?: (progress: number) => void,
+  firebaseToken?: string,
 ) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const storageRef = ref(storage, file.name);
+      // Sign in to Firebase with the Clerk token if provided
+      if (firebaseToken) {
+        await signInWithCustomToken(auth, firebaseToken);
+      }
+
+      // Create a unique filename to avoid collisions
+      const uniqueFileName = `${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, `meetings/${uniqueFileName}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on(
@@ -64,4 +75,38 @@ export async function uploadFile(
       reject(error);
     }
   });
+}
+
+export async function deleteFile(fileUrl: string, firebaseToken?: string) {
+  try {
+    // Sign in to Firebase with the token if provided
+    if (firebaseToken) {
+      await signInWithCustomToken(auth, firebaseToken);
+    }
+
+    if (!auth.currentUser) {
+      console.warn("No authenticated user for Firebase deletion");
+    }
+
+    // Parse the Firebase Storage URL format
+    // Extract the file path from the URL by taking everything after '/o/'
+    const filePathMatch = fileUrl.match(/\/o\/([^?]+)/);
+
+    if (!filePathMatch || !filePathMatch[1]) {
+      throw new Error(`Could not extract file path from URL: ${fileUrl}`);
+    }
+
+    // Decode the URL-encoded path
+    const encodedPath = filePathMatch[1];
+    const filePath = decodeURIComponent(encodedPath);
+
+    console.log("Deleting file at path:", filePath);
+
+    const fileRef = ref(storage, filePath);
+    await deleteObject(fileRef);
+    return true;
+  } catch (error) {
+    console.error("Error deleting file from Firebase Storage:", error);
+    throw error;
+  }
 }

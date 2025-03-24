@@ -71,17 +71,30 @@ export const meetingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { meetingId } = input;
 
-      // Find the meeting first to verify it exists
+      // Find the meeting first
       const meeting = await ctx.db.meeting.findUnique({
-        where: { id: meetingId },
+        where: {
+          id: meetingId,
+          project: {
+            userToProjects: {
+              some: {
+                userId: ctx.user.userId!,
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          meetingUrl: true,
+        },
       });
 
       if (!meeting) {
-        throw new Error("Meeting not found");
+        throw new Error("Meeting not found or unauthorized");
       }
 
-      // Use a transaction to ensure all related data is deleted properly
-      return await ctx.db.$transaction(async (tx) => {
+      // Use a transaction for database cleanup only - handle file deletion separately
+      await ctx.db.$transaction(async (tx) => {
         // 1. First find all chats associated with this meeting
         const chats = await tx.chat.findMany({
           where: { meetingId },
@@ -112,13 +125,13 @@ export const meetingRouter = createTRPCRouter({
           where: { meetingId },
         });
 
-        // 6. Finally delete the meeting itself
+        // 6. Delete the meeting from the database
         await tx.meeting.delete({
           where: { id: meetingId },
         });
-
-        return { success: true };
       });
+
+      return { success: true, meetingUrl: meeting.meetingUrl };
     }),
 
   // Get a specific meeting by ID
