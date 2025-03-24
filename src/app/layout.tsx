@@ -27,9 +27,9 @@ export const metadata: Metadata = {
       "Understand your GitHub repositories and team meetings with AI-powered insights. Ask questions about your code, analyze commits, and extract actionable insights from meetings.",
     images: [
       {
-        url: "/hero-image-dark.png",
-        width: 1200,
-        height: 630,
+        url: "/thumbnail.jpg",
+        width: 1000,
+        height: 667,
         alt: "InsightSeek dashboard showing code and meeting analysis",
       },
     ],
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: "InsightSeek | AI-powered Code & Meeting Analysis",
     description:
       "Understand your GitHub repositories and team meetings with AI-powered insights. Ask questions about your code, analyze commits, and extract actionable insights from meetings.",
-    images: ["/hero-image-dark.png"],
+    images: ["/thumbnail.jpg"],
   },
 };
 
