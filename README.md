@@ -1,29 +1,57 @@
-# Create T3 App
+# ✨ InsightSeek
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+InsightSeek is an AI-powered platform for code and meeting analysis, designed to provide valuable insights from GitHub repositories and team meetings.
 
-## What's next? How do I make an app with this?
+## 🚀 Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary..
+### 📊 Repository Analysis
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+- **Code Understanding**: Ask questions about your GitHub repositories and get accurate answers
+- **Commit Summaries**: AI-generated summaries of code changes to quickly understand repository history
+- **Intelligent Indexing**: Automatic detection and indexing of modified files to keep your codebase up-to-date
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+### 🎙️ Meeting Analysis
 
-## Learn More
+- **Meeting Transcription**: Convert meeting recordings to searchable text with speaker identification
+- **Chapter Summaries**: Automatically generate summaries of key discussion points
+- **Issue Tracking**: Identify action items and key topics from meetings
+- **Language Support**: Currently supports English language recordings only
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+## 🛠️ Technology Stack
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+InsightSeek is built with a modern tech stack:
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+- **Frontend**: Next.js 19, React, Tailwind CSS, Radix UI
+- **Backend**: tRPC, Prisma, PostgreSQL with vector extensions
+- **AI**: Google Gemini AI, AssemblyAI, vector embeddings
+- **Infrastructure**: Netlify serverless functions
+- **Authentication**: Clerk
 
-## How do I deploy this?
+## 🚀 Deployment
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+This project is configured for deployment on Netlify, with serverless functions handling background processing like commit analysis and meeting transcription.
+
+## 🔒 Security
+
+InsightSeek prioritizes security with end-to-end encryption and follows industry-standard security practices and GDPR regulations. Repository data is processed securely and not permanently stored.
+
+## 💳 Credits
+
+Every new user receives 150 credits upon signup to start exploring InsightSeek's features right away.
+
+InsightSeek requires credits for processing files and analyzing meetings. The credit system is designed to balance usage based on project size:
+
+- 2 credits per file for reindexing
+- Credits for meeting analysis based on duration
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🐛 Issues
+
+If you encounter any bugs or have feature requests, please open an issue on GitHub. I'm open to feedback and continuously working to improve InsightSeek.
+
+## 📝 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
