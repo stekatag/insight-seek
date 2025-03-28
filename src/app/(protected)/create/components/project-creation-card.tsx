@@ -254,8 +254,12 @@ export default function ProjectCreationCard({
       // Store the newly created project ID in localStorage
       localStorage.setItem("lastCreatedProject", project.id);
 
+      // Redirect to the project immediately to ensure good user experience
+      toast.success("Project created successfully!");
+      onSuccess(project.id);
+
+      // Process commits in the background after redirect
       try {
-        // Call the process-commits API with the isProjectCreation flag
         await fetch("/api/process-commits", {
           method: "POST",
           headers: {
@@ -264,16 +268,14 @@ export default function ProjectCreationCard({
           body: JSON.stringify({
             projectId: project.id,
             githubUrl: project.githubUrl,
-            isProjectCreation: true, // Add this flag
+            isProjectCreation: true,
           }),
         });
       } catch (error) {
         console.error("Error processing commits:", error);
         // Don't show an error toast as it might confuse the user
+        // User is already redirected to the project at this point
       }
-
-      toast.success("Project created successfully!");
-      onSuccess(project.id);
     },
     onError: (error) => {
       // Check if this is a "Stream closed" error - which can be safely ignored
@@ -296,11 +298,25 @@ export default function ProjectCreationCard({
           );
           onSuccess(projectId);
         } else {
+          // Try to get the last created project from localStorage
+          const lastProjectId = localStorage.getItem("lastCreatedProject");
+
+          if (lastProjectId) {
+            toast.success(
+              "Project created successfully! Redirecting to your project.",
+            );
+            onSuccess(lastProjectId);
+            return;
+          }
+
           // No project ID, redirect to dashboard anyway
-          toast.success(
-            "Project likely created successfully. Check your dashboard.",
+          toast.warning(
+            "Project may have been created, but we couldn't confirm. Please check your dashboard.",
           );
-          window.location.href = "/dashboard";
+          // Add a small delay to ensure the toast is seen
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 1500);
         }
         return;
       }

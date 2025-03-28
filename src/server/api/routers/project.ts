@@ -118,32 +118,57 @@ export const projectRouter = createTRPCRouter({
       try {
         // Wait for the indexing to complete with the specified branch
         console.log(`Starting source code indexing for project ${project.id}`);
-        // Ensure token is either string or undefined, not null
-        await indexGithubRepo(
-          project.id,
-          input.githubUrl,
-          input.branch,
-          githubToken,
-        );
-        console.log(`Source code indexing completed for project ${project.id}`);
 
-        // We'll call the process-commits endpoint directly from the client after project creation
-        // This avoids server-side fetch issues in Netlify functions
+        // Set a timeout promise to handle long-running indexing
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(
+              new Error(
+                "Indexing timeout, but project was created successfully",
+              ),
+            );
+          }, 300000); // 5 minutes timout
+        });
+
+        // Race the indexing process against the timeout
+        await Promise.race([
+          indexGithubRepo(
+            project.id,
+            input.githubUrl,
+            input.branch,
+            githubToken,
+          ),
+          timeoutPromise,
+        ]);
+
+        console.log(`Source code indexing completed for project ${project.id}`);
       } catch (error) {
-        console.error(`Error during repository indexing: ${error}`);
+        console.error(`Error during repository indexing:`, error);
 
         // Check if this is a timeout or stream closed error
-        if (isAbortOrTimeoutError(error)) {
+        if (
+          isAbortOrTimeoutError(error) ||
+          (error instanceof Error && error.message?.includes("timeout"))
+        ) {
           console.warn(
-            "Ignoring timeout error as indexing likely succeeded:",
+            "Indexing timed out but project was created successfully:",
             error,
           );
 
-          // Don't rethrow - just log and continue
+          // Create a new error with the project ID included
+          const timeoutError = new TRPCError({
+            code: "TIMEOUT",
+            message: "Project created, but indexing timed out",
+          });
+
+          // Add projectId to the error data
+          // @ts-expect-error - Adding custom data to the error
+          timeoutError.data = { projectId: project.id };
+
+          throw timeoutError;
         } else {
-          // Other errors might be more serious
+          // Other errors might be more serious but still return the project
           console.error("Unexpected error during indexing:", error);
-          // Still don't rethrow, as we've already created the project
         }
       }
 
