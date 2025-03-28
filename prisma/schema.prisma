@@ -209,3 +209,32 @@ model Chat {
     
     questions Question[] 
 }
+
+// Add the enum for validation status
+enum ValidationStatus {
+    PROCESSING
+    COMPLETED
+    ERROR
+}
+
+// Model for storing repository validation results
+model ValidationResult {
+    id              String   @id @default(cuid())
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+    
+    // Validation inputs
+    userId          String
+    githubUrl       String
+    branch          String
+    
+    // Validation results
+    fileCount       Int?
+    userCredits     Int?
+    hasEnoughCredits Boolean?
+    status          ValidationStatus 
+    error           String?
+    
+    // Create a unique constraint to avoid duplicates
+    @@unique([userId, githubUrl, branch])
+}

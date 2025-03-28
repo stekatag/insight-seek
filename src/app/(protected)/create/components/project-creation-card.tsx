@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ValidationStatus } from "@prisma/client";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import axios from "axios";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -48,6 +50,9 @@ interface ProjectCreationCardProps {
   onSuccess: (projectId: string) => void;
 }
 
+// Timeout constants in milliseconds
+const VALIDATION_TIMEOUT_MS = 240000; // 4 minutes
+
 export default function ProjectCreationCard({
   form,
   userId,
@@ -86,7 +91,131 @@ export default function ProjectCreationCard({
   const { data: githubData } = api.user.getGithubStatus.useQuery();
   const hasGithubConnection = !!githubData?.connected;
 
-  // Credit validation mutation - MOVED THIS BEFORE resetValidation
+  // Validation status polling
+  const [validationPolling, setValidationPolling] = useState(false);
+
+  // Track if we're in a validation initializing state (just requested validation but record not yet created)
+  const [validationInitializing, setValidationInitializing] = useState(false);
+
+  // Use query for validation status polling
+  const { data: validationResult } = api.project.getValidationStatus.useQuery(
+    {
+      githubUrl: form.getValues("repoUrl"),
+      branch: form.getValues("branch"),
+    },
+    {
+      enabled:
+        validationPolling &&
+        !validationInitializing && // Don't query until initializing is done
+        !!form.getValues("repoUrl") &&
+        !!form.getValues("branch"),
+      refetchInterval: validationPolling ? 2000 : false,
+      retry: validationPolling,
+      retryDelay: 2000,
+    },
+  );
+
+  // Handle errors in validation status fetch
+  useEffect(() => {
+    // If we're initializing or not polling, don't worry about errors
+    if (validationInitializing || !validationPolling) return;
+
+    // Set up error handling for missing validation results
+    const errorTimeout = setTimeout(() => {
+      // If we're still polling but can't find the record after a while, give up
+      if (validationPolling && !validationResult) {
+        setValidationPolling(false);
+        setValidationState("error");
+        setValidationError("Repository validation failed. Please try again.");
+        toast.error("Repository validation failed. Please try again.");
+      }
+    }, 5000); // Give it 5 seconds to find the record
+
+    return () => clearTimeout(errorTimeout);
+  }, [validationPolling, validationInitializing, validationResult]);
+
+  // Effect to handle validation status changes
+  useEffect(() => {
+    if (!validationResult) return;
+
+    // Once we get a valid result, we're definitely not initializing anymore
+    if (validationInitializing) {
+      setValidationInitializing(false);
+    }
+
+    // Check if this validation result is for the current form values
+    // This prevents stale validation results from being used
+    const currentGithubUrl = form.getValues("repoUrl");
+    const currentBranch = form.getValues("branch");
+
+    if (
+      validationResult.githubUrl !== currentGithubUrl ||
+      validationResult.branch !== currentBranch
+    ) {
+      // This is a stale result, ignore it
+      console.log("Ignoring stale validation result");
+      return;
+    }
+
+    if (validationResult.status === ValidationStatus.COMPLETED) {
+      setValidationPolling(false);
+      setValidationState("validated");
+
+      if (!validationResult.hasEnoughCredits) {
+        toast.warning("You need more credits to create this project.");
+      }
+    } else if (validationResult.status === ValidationStatus.ERROR) {
+      setValidationPolling(false);
+      setValidationState("error");
+      setValidationError(
+        validationResult.error || "Repository validation failed",
+      );
+      toast.error(validationResult.error || "Failed to validate repository");
+    }
+  }, [validationResult, validationInitializing, form]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Stop all validation processes when component unmounts
+      setValidationPolling(false);
+      setValidationInitializing(false);
+    };
+  }, []);
+
+  // Background validation function
+  const validateRepositoryBackground = async (
+    githubUrl: string,
+    branch: string,
+  ) => {
+    if (!userId) return;
+
+    try {
+      // Set initializing state to prevent premature queries
+      setValidationInitializing(true);
+
+      // Start the background validation
+      await axios.post("/api/validate-repository", {
+        githubUrl,
+        branch,
+        userId,
+      });
+
+      // Give the database a moment to create the record before we start polling
+      setTimeout(() => {
+        setValidationInitializing(false);
+        setValidationPolling(true);
+      }, 1000);
+    } catch (error) {
+      console.error("Error starting repository validation:", error);
+      setValidationState("error");
+      setValidationError("Failed to start repository validation");
+      toast.error("Failed to start repository validation");
+      setValidationInitializing(false);
+    }
+  };
+
+  // Credit validation mutation - keep for compatibility, but we'll use the background function
   const checkCredits = api.project.checkCredits.useMutation({
     onSuccess: (data) => {
       setValidationState("validated");
@@ -95,26 +224,29 @@ export default function ProjectCreationCard({
       }
     },
     onError: (error) => {
+      // If we got a "Stream closed" error, switch to background validation
+      if (isAbortOrTimeoutError(error)) {
+        const data = form.getValues();
+        validateRepositoryBackground(data.repoUrl, data.branch);
+        return;
+      }
+
       setValidationState("error");
       setValidationError(error.message || "Invalid repository");
       toast.error(error.message || "Failed to validate repository");
     },
   });
 
-  // Define resetValidation function early to avoid the "used before declaration" error
-  const resetValidation = useCallback(
-    () => {
-      setValidationState("idle");
-      setValidationError(null);
-      checkCredits.reset();
-    },
-    [checkCredits], // Now checkCredits is properly declared before use
-  );
-
-  // Update resetValidation with proper dependency - ADD THIS BACK
-  const resetValidationWithDeps = useCallback(resetValidation, [
-    resetValidation,
-  ]);
+  // Clear validation when repo or branch changes
+  const resetValidation = useCallback(() => {
+    // Stop any active polling
+    setValidationPolling(false);
+    // Reset all validation states
+    setValidationInitializing(false);
+    setValidationState("idle");
+    setValidationError(null);
+    checkCredits.reset();
+  }, [checkCredits]);
 
   // Project creation mutation
   const createProject = api.project.createProject.useMutation({
@@ -211,6 +343,9 @@ export default function ProjectCreationCard({
       // Skip update if selecting the same repo
       if (prevRepoRef.current === repo.fullName) return;
 
+      // We're changing repos, so reset all validation
+      resetValidation();
+
       prevRepoRef.current = repo.fullName;
       setSelectedRepo(repo);
 
@@ -218,9 +353,6 @@ export default function ProjectCreationCard({
       form.setValue("repoUrl", repo.htmlUrl);
       form.setValue("projectName", repo.name);
       form.trigger(["repoUrl", "projectName"]);
-
-      // Reset validation state
-      resetValidationWithDeps();
 
       // Clear the branch selection when changing repositories
       form.setValue("branch", "");
@@ -239,19 +371,19 @@ export default function ProjectCreationCard({
         setRepoName(parts[1] || "");
       }
     },
-    [form, resetValidationWithDeps],
+    [form, resetValidation],
   );
 
   // Handle branch selection
   const handleSelectBranch = (branch: string) => {
     form.setValue("branch", branch);
     form.trigger("branch");
-    resetValidationWithDeps();
+    resetValidation();
   };
 
   // Handle form submission
   const onSubmit = (data: CreateProjectFormData) => {
-    if (validationState === "validated" && checkCredits.data) {
+    if (validationState === "validated" && validationResult) {
       // Proceed with project creation
       createProject.mutate({
         githubUrl: data.repoUrl,
@@ -265,15 +397,13 @@ export default function ProjectCreationCard({
     setValidationState("validating");
     setValidationError(null);
 
-    checkCredits.mutate({
-      githubUrl: data.repoUrl,
-      branch: data.branch,
-    });
+    // Start background validation directly
+    validateRepositoryBackground(data.repoUrl, data.branch);
   };
 
-  // Check if user has enough credits
-  const hasEnoughCredits = checkCredits.data?.userCredits
-    ? checkCredits.data.fileCount <= checkCredits.data.userCredits
+  // Check if user has enough credits - use validation result if available
+  const hasEnoughCredits = validationResult
+    ? (validationResult.hasEnoughCredits ?? true)
     : true;
 
   // Determine if validation should be allowed
@@ -291,18 +421,63 @@ export default function ProjectCreationCard({
     form.getValues("repoUrl") !== "" &&
     !branchState.isLoading;
 
+  // Handle loading/polling for validation with spinner or indicator
+  const isValidating =
+    validationPolling || checkCredits.isPending || validationInitializing;
+
   // Get the correct button text based on validation state
   const getButtonText = () => {
-    if (checkCredits.isPending) {
-      return "Validating Repository";
+    if (createProject.isPending) {
+      return "Creating Project...";
+    }
+
+    if (isValidating) {
+      return "Checking Repository";
     }
 
     if (validationState === "validated") {
       return "Create Project";
     }
 
-    return "Validate Repository";
+    return "Check Repository";
   };
+
+  // Get the appropriate icon for the button
+  const getButtonIcon = () => {
+    if (isValidating || createProject.isPending) {
+      // No icon needed when validating or creating (we show a spinner)
+      return null;
+    }
+
+    if (validationState === "validated") {
+      // Show plus icon for create project
+      return <Plus className="h-4 w-4" />;
+    }
+
+    // Show search/check icon for checking repository
+    return <Info className="h-4 w-4" />;
+  };
+
+  // Set up error handling for validation timeouts
+  useEffect(() => {
+    if (!isValidating) return;
+
+    // Set a timeout to handle validation that takes too long
+    const timeoutId = setTimeout(() => {
+      if (isValidating && !validationResult) {
+        // If we're still validating after the timeout, show an error
+        setValidationPolling(false);
+        setValidationInitializing(false);
+        setValidationState("error");
+        setValidationError(
+          "Repository validation timed out. Please try again.",
+        );
+        toast.error("Repository validation took too long. Please try again.");
+      }
+    }, VALIDATION_TIMEOUT_MS); // 4 minutes timeout
+
+    return () => clearTimeout(timeoutId);
+  }, [isValidating, validationResult]);
 
   return (
     <>
@@ -332,7 +507,7 @@ export default function ProjectCreationCard({
                       {...field}
                       onChange={(e) => {
                         field.onChange(e);
-                        resetValidationWithDeps();
+                        resetValidation();
                       }}
                     />
                   </FormControl>
@@ -365,13 +540,15 @@ export default function ProjectCreationCard({
               </div>
 
               {selectedRepo ? (
-                <div className="flex items-center justify-between rounded-md border border-input bg-background p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full border bg-background">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-md border border-input bg-background p-3 gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-md  gap-2 p-1.5 sm:p-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center sm:justify-center rounded-full border bg-background">
                       <GitHubLogoIcon className="h-4 w-4" />
                     </div>
-                    <div>
-                      <div className="font-medium">{selectedRepo.fullName}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium break-words">
+                        {selectedRepo.fullName}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {selectedRepo.private ? "Private" : "Public"} repository
                       </div>
@@ -388,7 +565,7 @@ export default function ProjectCreationCard({
                       setRepoName("");
                       form.setValue("repoUrl", "");
                       form.setValue("branch", "");
-                      resetValidationWithDeps();
+                      resetValidation();
                     }}
                   >
                     <X className="h-4 w-4" />
@@ -456,12 +633,13 @@ export default function ProjectCreationCard({
 
             {/* Validation states */}
             {validationState === "validating" && (
-              <Alert variant="info" className="flex items-center">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mr-2"></div>
+              <Alert variant="info" className="flex gap-2">
+                <Spinner className="text-primary" />
                 <div>
                   <AlertTitle>Validating repository...</AlertTitle>
                   <AlertDescription>
-                    Please wait while we check your GitHub repository.
+                    Please wait while we check your GitHub repository. This may
+                    take a few moments.
                   </AlertDescription>
                 </div>
               </Alert>
@@ -475,7 +653,7 @@ export default function ProjectCreationCard({
               </Alert>
             )}
 
-            {validationState === "validated" && checkCredits.data && (
+            {validationState === "validated" && validationResult && (
               <Alert variant="success">
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertTitle>Repository validated successfully</AlertTitle>
@@ -486,7 +664,7 @@ export default function ProjectCreationCard({
               </Alert>
             )}
 
-            {validationState === "validated" && checkCredits.data && (
+            {validationState === "validated" && validationResult && (
               <Alert variant="info">
                 <Info className="h-4 w-4" />
                 <AlertTitle>Credit Information</AlertTitle>
@@ -494,17 +672,17 @@ export default function ProjectCreationCard({
                   <div className="space-y-1 text-sm">
                     <p>
                       Credits required:{" "}
-                      <strong>{checkCredits.data.fileCount}</strong>
+                      <strong>{validationResult.fileCount}</strong>
                     </p>
                     <p>
                       Your credits:{" "}
-                      <strong>{checkCredits.data.userCredits}</strong>
+                      <strong>{validationResult.userCredits}</strong>
                     </p>
                     {!hasEnoughCredits && (
                       <p className="text-red-500 dark:text-red-400">
                         You need{" "}
-                        {checkCredits.data.fileCount -
-                          checkCredits.data.userCredits}{" "}
+                        {(validationResult.fileCount || 0) -
+                          (validationResult.userCredits || 0)}{" "}
                         more credits.
                       </p>
                     )}
@@ -535,32 +713,35 @@ export default function ProjectCreationCard({
               </Link>
             )}
 
-            <Button
-              type="submit"
-              form="project-form"
-              className="w-full"
-              disabled={
-                createProject.isPending ||
-                checkCredits.isPending ||
-                (validationState === "validated" && !hasEnoughCredits) ||
-                !canValidate || // Use our new improved check
-                !formIsValid
-              }
-            >
-              {branchState.isLoading ? (
-                <>
-                  <Spinner className="text-white" size="small" />
-                  <span>Loading branches</span>
-                </>
-              ) : (
-                <>
-                  <span>{getButtonText()}</span>
-                  {(createProject.isPending || checkCredits.isPending) && (
-                    <Spinner className="ml-2 text-white" size="small" />
-                  )}
-                </>
-              )}
-            </Button>
+            {/* Only show the submit button if user has enough credits or is not yet validated */}
+            {(hasEnoughCredits || validationState !== "validated") && (
+              <Button
+                type="submit"
+                form="project-form"
+                className="w-full"
+                disabled={
+                  createProject.isPending ||
+                  isValidating ||
+                  !canValidate ||
+                  !formIsValid
+                }
+              >
+                {branchState.isLoading ? (
+                  <>
+                    <Spinner className="text-white" size="small" />
+                    <span>Loading branches</span>
+                  </>
+                ) : (
+                  <>
+                    {!isValidating && getButtonIcon()}
+                    <span>{getButtonText()}</span>
+                    {(isValidating || createProject.isPending) && (
+                      <Spinner className="text-white" size="small" />
+                    )}
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </CardFooter>
       </Card>

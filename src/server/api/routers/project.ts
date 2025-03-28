@@ -379,4 +379,36 @@ export const projectRouter = createTRPCRouter({
         });
       }
     }),
+
+  // New endpoint to get repository validation status
+  getValidationStatus: protectedProdecure
+    .input(
+      z.object({
+        githubUrl: z.string(),
+        branch: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.user.userId!;
+
+      // Fetch validation result from database
+      const validationResult = await ctx.db.validationResult.findUnique({
+        where: {
+          userId_githubUrl_branch: {
+            userId,
+            githubUrl: input.githubUrl,
+            branch: input.branch,
+          },
+        },
+      });
+
+      if (!validationResult) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Validation result not found",
+        });
+      }
+
+      return validationResult;
+    }),
 });
