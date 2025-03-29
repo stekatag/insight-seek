@@ -1,3 +1,4 @@
+import { ProjectCreationStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -435,5 +436,134 @@ export const projectRouter = createTRPCRouter({
       }
 
       return validationResult;
+    }),
+
+  // New endpoint to start project creation process
+  startProjectCreation: protectedProdecure
+    .input(
+      z.object({
+        name: z.string(),
+        githubUrl: z.string(),
+        branch: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.userId!;
+
+      try {
+        // First, check if a record with these details already exists
+        const existingRecord = await ctx.db.projectCreation.findFirst({
+          where: {
+            userId,
+            name: input.name,
+            githubUrl: input.githubUrl,
+            branch: input.branch,
+          },
+        });
+
+        let projectCreation;
+
+        if (existingRecord) {
+          // If completed with a projectId, check if the project still exists
+          if (
+            existingRecord.status === ProjectCreationStatus.COMPLETED &&
+            existingRecord.projectId
+          ) {
+            // Check if the project still exists
+            const project = await ctx.db.project.findUnique({
+              where: { id: existingRecord.projectId },
+            });
+
+            if (project) {
+              // Project exists, we can just return the existing record
+              return {
+                success: true,
+                projectCreationId: existingRecord.id,
+                message: "Project creation record already exists",
+              };
+            }
+          }
+
+          // If the existing record is in an ERROR or COMPLETED state, we can re-use it
+          if (
+            existingRecord.status === ProjectCreationStatus.ERROR ||
+            existingRecord.status === ProjectCreationStatus.COMPLETED
+          ) {
+            // Update the existing record to INITIALIZING to start again
+            projectCreation = await ctx.db.projectCreation.update({
+              where: { id: existingRecord.id },
+              data: {
+                status: ProjectCreationStatus.INITIALIZING,
+                error: null, // Clear any previous error
+                updatedAt: new Date(), // Update the timestamp
+              },
+            });
+          } else {
+            // If it's still in progress, just return the existing ID
+            projectCreation = existingRecord;
+          }
+        } else {
+          // No existing record, create a new one
+          projectCreation = await ctx.db.projectCreation.create({
+            data: {
+              userId,
+              name: input.name,
+              githubUrl: input.githubUrl,
+              branch: input.branch,
+              status: ProjectCreationStatus.INITIALIZING,
+            },
+          });
+        }
+
+        return {
+          success: true,
+          projectCreationId: projectCreation.id,
+          message: "Project creation initialized",
+        };
+      } catch (error) {
+        console.error("Error starting project creation:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to start project creation",
+        });
+      }
+    }),
+
+  // New endpoint to get project creation status
+  getProjectCreationStatus: protectedProdecure
+    .input(z.object({ projectCreationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.user.userId!;
+
+      try {
+        // Fetch project creation status
+        const creationStatus = await ctx.db.projectCreation.findUnique({
+          where: {
+            id: input.projectCreationId,
+            userId, // Ensure it belongs to the current user
+          },
+        });
+
+        if (!creationStatus) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Project creation record not found",
+          });
+        }
+
+        return creationStatus;
+      } catch (error) {
+        console.error("Error fetching project creation status:", error);
+
+        // Rethrow NOT_FOUND errors
+        if (error instanceof TRPCError && error.code === "NOT_FOUND") {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get project creation status",
+        });
+      }
     }),
 });

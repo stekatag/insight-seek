@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -29,10 +29,29 @@ import { Spinner } from "@/components/ui/spinner";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
+
+  // Check if this is a newly created project from localStorage
+  const isNewProject = useMemo(() => {
+    const lastCreatedProject = localStorage.getItem("lastCreatedProject");
+    const isNew = lastCreatedProject === projectId;
+
+    // If this is a new project, we should preserve this information
+    if (isNew) {
+      // Create a session flag to remember this is a new project even after localStorage is cleared
+      sessionStorage.setItem("currentProjectIsNew", "true");
+    }
+
+    // Check both localStorage and sessionStorage
+    return isNew || sessionStorage.getItem("currentProjectIsNew") === "true";
+  }, [projectId]);
+
   const [hasPendingSummaries, setHasPendingSummaries] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
   const [isReindexing, setIsReindexing] = useState(false);
   const globalRefetch = useRefetch();
+
+  // Add a ref to track if a refresh is already in progress to prevent duplicate requests
+  const refreshInProgressRef = useRef(false);
 
   // Calculate dynamic refetch interval based on pending summaries
   const refetchInterval = hasPendingSummaries
@@ -49,7 +68,10 @@ export default function CommitLog() {
     {
       enabled: !!projectId,
       refetchInterval,
-      staleTime: hasPendingSummaries ? 1000 : 60000, // Make data stale quickly when there are pending summaries
+      staleTime: hasPendingSummaries ? 1000 : 30000, // Make data stale more quickly (was 60000)
+      refetchOnWindowFocus: true, // Add this to refetch when the window regains focus
+      refetchOnMount: true, // Always refetch when component mounts
+      networkMode: "always", // Always try to fetch from network
     },
   );
 
@@ -78,25 +100,115 @@ export default function CommitLog() {
           body: JSON.stringify({
             projectId: result.data.projectId,
             githubUrl: result.data.githubUrl,
+            isProjectCreation: isNewProject ? true : false,
           }),
         });
 
-        // Set a small timeout before first refetch to allow background processing to start
+        // First immediate refetch to check for any existing commits
+        refetch({ throwOnError: false });
+
+        // Set a longer timeout for a second refetch to ensure we get all the new commits
+        // This longer delay gives the background process enough time to create the commits
         setTimeout(() => {
-          refetch();
+          refetch({ throwOnError: false });
           setLastRefreshTime(Date.now());
-        }, 1000);
+          refreshInProgressRef.current = false; // Reset refresh flag when done
+
+          // Add one more final refetch after the background processing should be complete
+          setTimeout(() => {
+            refetch({ throwOnError: false });
+          }, 3000);
+        }, 4000);
       } catch (error) {
         console.error("Error calling background function:", error);
-        // Even if the background function call fails, we'll still refetch data
-        // as commits might have been updated in the database
         refetch();
+        refreshInProgressRef.current = false; // Reset refresh flag on error too
       }
     },
     onError: (error) => {
       toast.error("Failed to refresh commits: " + error.message);
+      refreshInProgressRef.current = false; // Reset refresh flag on error
     },
   });
+
+  // Handle refresh button click
+  const handleRefreshCommits = () => {
+    if (!projectId || !project?.githubUrl || refreshInProgressRef.current)
+      return;
+
+    refreshInProgressRef.current = true; // Set the flag to prevent duplicate requests
+
+    // Initial refetch to get latest data
+    refetch({ throwOnError: false });
+
+    // Safety timeout to reset the flag in case something goes wrong
+    setTimeout(() => {
+      refreshInProgressRef.current = false;
+    }, 20000); // 20 seconds max timeout to account for longer processing
+
+    processCommitsMutation.mutate({
+      projectId,
+      githubUrl: project.githubUrl,
+    });
+  };
+
+  // Check if we need to load commits initially or refresh them
+  useEffect(() => {
+    // Only proceed if we have project details
+    if (!projectId || !project?.githubUrl) return;
+
+    // Don't start another refresh if one is already in progress
+    if (refreshInProgressRef.current) return;
+
+    // If this is a new project, we should always refresh commits
+    if (isNewProject) {
+      handleRefreshCommits();
+      return;
+    }
+
+    // For existing projects, only refresh if we have no commits or it's been a while
+    const needsRefresh =
+      !commits ||
+      commits.length === 0 ||
+      Date.now() - lastRefreshTime > 10 * 60 * 1000;
+
+    if (needsRefresh) {
+      handleRefreshCommits();
+    }
+  }, [projectId, project?.githubUrl, isNewProject, commits, lastRefreshTime]);
+
+  // Check for pending summaries and update state
+  useEffect(() => {
+    if (commits && commits.length > 0) {
+      // Reset the refresh flag when commits data is loaded
+      refreshInProgressRef.current = false;
+
+      const pending = commits.some(
+        (commit) => commit.summary === "Analyzing commit...",
+      );
+
+      // Only update state if it's changed to avoid unnecessary rerenders
+      if (pending !== hasPendingSummaries) {
+        setHasPendingSummaries(pending);
+
+        // If there were pending summaries but now they're all done, do a forced refetch
+        if (!pending && hasPendingSummaries) {
+          refetch();
+        }
+      }
+    }
+  }, [commits, hasPendingSummaries, refetch]);
+
+  // Clear the session flag after the first commit refresh
+  useEffect(() => {
+    if (
+      commits &&
+      commits.length > 0 &&
+      sessionStorage.getItem("currentProjectIsNew") === "true"
+    ) {
+      sessionStorage.removeItem("currentProjectIsNew");
+    }
+  }, [commits]);
 
   // New mutation for confirming reindexing
   const confirmReindexMutation = api.commit.confirmReindex.useMutation({
@@ -170,53 +282,6 @@ export default function CommitLog() {
     },
   });
 
-  // Check for pending summaries and update state
-  useEffect(() => {
-    if (commits && commits.length > 0) {
-      const pending = commits.some(
-        (commit) => commit.summary === "Analyzing commit...",
-      );
-
-      // Only update state if it's changed to avoid unnecessary rerenders
-      if (pending !== hasPendingSummaries) {
-        setHasPendingSummaries(pending);
-
-        // If there were pending summaries but now they're all done, do a forced refetch
-        if (!pending && hasPendingSummaries) {
-          console.log("Summaries completed, doing final refetch");
-          refetch();
-        }
-      }
-    }
-  }, [commits, hasPendingSummaries, refetch]);
-
-  // Check if we need to load commits initially or refresh them
-  useEffect(() => {
-    const shouldCheck = projectId && project?.githubUrl;
-    if (!shouldCheck) return;
-
-    // Check if no commits or if it's been more than 10 minutes since last refresh
-    const needsRefresh =
-      !commits ||
-      commits.length === 0 ||
-      Date.now() - lastRefreshTime > 10 * 60 * 1000;
-
-    if (needsRefresh) {
-      console.log("Initial commit refresh needed");
-      handleRefreshCommits();
-    }
-  }, [projectId, project?.githubUrl]); // Deliberately remove commits from dependencies
-
-  // Handle refresh button click
-  const handleRefreshCommits = () => {
-    if (!projectId || !project?.githubUrl) return;
-
-    processCommitsMutation.mutate({
-      projectId,
-      githubUrl: project.githubUrl,
-    });
-  };
-
   // Handle reindex confirmation
   const handleConfirmReindex = () => {
     if (!projectId || !project?.githubUrl) return;
@@ -257,9 +322,9 @@ export default function CommitLog() {
         </p>
         <Button
           onClick={handleRefreshCommits}
-          disabled={processCommitsMutation.isPending}
+          disabled={refreshInProgressRef.current}
         >
-          {processCommitsMutation.isPending ? (
+          {refreshInProgressRef.current ? (
             <>
               <Spinner size="small" className="mr-2" />
               Refreshing...
@@ -402,9 +467,9 @@ export default function CommitLog() {
             variant="outline"
             size="sm"
             onClick={handleRefreshCommits}
-            disabled={processCommitsMutation.isPending}
+            disabled={refreshInProgressRef.current}
           >
-            {processCommitsMutation.isPending ? (
+            {refreshInProgressRef.current ? (
               <Spinner size="small" className="mr-1" />
             ) : (
               <RefreshCw className="mr-1 h-3.5 w-3.5" />

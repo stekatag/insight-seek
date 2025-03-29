@@ -1,4 +1,3 @@
-import axios from "axios";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProdecure } from "../trpc";
@@ -12,6 +11,7 @@ export const commitRouter = createTRPCRouter({
       const commits = await ctx.db.commit.findMany({
         where: { projectId: input.projectId },
         orderBy: { commitDate: "desc" },
+        take: 30, // Limit to 30 most recent commits
       });
 
       // Get count of commits that need reindexing
@@ -24,12 +24,16 @@ export const commitRouter = createTRPCRouter({
         .filter((commit) => commit.needsReindex)
         .reduce((acc, commit) => acc + (commit.modifiedFiles?.length || 0), 0);
 
+      // Add a timestamp to force cache invalidation
+      const timestamp = new Date().getTime();
+
       return {
         commits,
         reindexMetadata: {
           commitCount: reindexCount,
           fileCount: modifiedFilesCount,
         },
+        timestamp, // This will force cache invalidation each time
       };
     }),
 

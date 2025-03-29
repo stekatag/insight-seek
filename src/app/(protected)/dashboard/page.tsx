@@ -40,17 +40,14 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const { project, projectId, isLoading: projectLoading } = useProject();
   const hasProject = !!project;
-  const newProjectId = searchParams.get("newProject");
   const apiUtils = api.useUtils();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get methods from context
   const { state, openDialog, addFollowUpOptimistically } = useChatContext();
 
-  // Important: Initialize indexing state first
-  const [indexingProject, setIndexingProject] = useState<string | null>(
-    newProjectId,
-  );
+  // Initialize indexing state
+  const [indexingProject, setIndexingProject] = useState<string | null>(null);
   const [indexingStatus, setIndexingStatus] = useState<{
     hasSourceCodeEmbeddings: boolean;
     embeddingsCount: number;
@@ -66,37 +63,19 @@ function DashboardContent() {
     },
   );
 
-  // Check for chat ID in URL on initial load
+  // Check for newly created project in localStorage
   useEffect(() => {
-    if (!chats || isLoading) return;
+    if (!hasProject) return;
 
-    const chatId = searchParams.get("chat");
-    if (chatId) {
-      const chat = chats.find((c) => c.id === chatId);
-      if (chat) {
-        // Open dialog with content ready to display - now with proper typing
-        const chatToOpen: Chat = {
-          ...chat,
-          questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
-            ...q,
-            answerLoading: false,
-          })),
-        };
-        openDialog(chatToOpen);
-      }
-    }
-  }, [chats, isLoading, searchParams, openDialog]);
+    const lastCreatedProject = localStorage.getItem("lastCreatedProject");
 
-  // Initialize addFollowupQuestion mutation
-  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
-  const createChat = api.qa.createChat.useMutation();
-
-  // Scroll to top if coming from project creation
-  useEffect(() => {
-    if (newProjectId) {
+    // If this is a newly created project, set it for indexing
+    if (lastCreatedProject && lastCreatedProject === projectId) {
+      setIndexingProject(projectId);
+      // Scroll to top for newly created projects
       window.scrollTo(0, 0);
     }
-  }, [newProjectId]);
+  }, [projectId, hasProject]);
 
   // Fetch indexing status if we have a new project
   useEffect(() => {
@@ -118,17 +97,14 @@ function DashboardContent() {
         const data = await response.json();
         setIndexingStatus(data.status);
 
-        // If the project is fully indexed, stop polling and clear the URL parameter
+        // If the project is fully indexed, stop polling
         if (data.status.isFullyIndexed) {
           setIndexingProject(null);
 
-          // Remove the newProject parameter from URL after successful indexing
-          const params = new URLSearchParams(window.location.search);
-          params.delete("newProject");
-          const newUrl =
-            window.location.pathname +
-            (params.toString() ? `?${params.toString()}` : "");
-          router.replace(newUrl);
+          // Clear the lastCreatedProject from localStorage once indexing is complete
+          if (localStorage.getItem("lastCreatedProject") === indexingProject) {
+            localStorage.removeItem("lastCreatedProject");
+          }
 
           // Show success message
           toast.success("Project indexing completed successfully!");
@@ -145,7 +121,32 @@ function DashboardContent() {
 
     // Clean up the interval
     return () => clearInterval(interval);
-  }, [indexingProject, router]);
+  }, [indexingProject]);
+
+  // Initialize addFollowupQuestion mutation
+  const addFollowupQuestion = api.qa.addFollowupQuestion.useMutation();
+  const createChat = api.qa.createChat.useMutation();
+
+  // Check for chat ID in URL on initial load
+  useEffect(() => {
+    if (!chats || isLoading) return;
+
+    const chatId = searchParams.get("chat");
+    if (chatId) {
+      const chat = chats.find((c) => c.id === chatId);
+      if (chat) {
+        // Open dialog with content ready to display - now with proper typing
+        const chatToOpen: Chat = {
+          ...chat,
+          questions: adaptDatabaseQuestions(chat.questions).map((q) => ({
+            ...q,
+            answerLoading: false,
+          })),
+        };
+        openDialog(chatToOpen);
+      }
+    }
+  }, [chats, isLoading, searchParams, openDialog]);
 
   // The followup submission handler specific to Dashboard page
   const submitFollowUpQuestion = useCallback(

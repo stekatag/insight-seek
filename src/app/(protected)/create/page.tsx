@@ -87,8 +87,14 @@ function CreatePageContent() {
           form={form}
           userId={user?.id}
           onSuccess={(projectId) => {
+            // Store the newly created project ID in localStorage
+            localStorage.setItem("lastCreatedProject", projectId);
+
+            // Trigger refetch of projects
             refetch();
-            router.push(`/dashboard?newProject=${projectId}`);
+
+            // Redirect to dashboard without parameters
+            router.push("/dashboard");
           }}
         />
       </Form>

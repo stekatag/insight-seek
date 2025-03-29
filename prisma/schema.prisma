@@ -238,3 +238,34 @@ model ValidationResult {
     // Create a unique constraint to avoid duplicates
     @@unique([userId, githubUrl, branch])
 }
+
+// Status for project creation process
+enum ProjectCreationStatus {
+    INITIALIZING
+    CREATING_PROJECT
+    INDEXING
+    COMPLETED
+    ERROR
+}
+
+// Model for storing project creation progress
+model ProjectCreation {
+    id              String   @id @default(cuid())
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+    
+    // Creation inputs
+    userId          String
+    name            String
+    githubUrl       String
+    branch          String
+    
+    // Creation results
+    projectId       String?
+    status          ProjectCreationStatus
+    error           String?
+    fileCount       Int?
+    
+    // Create a unique constraint to avoid duplicates
+    @@unique([userId, githubUrl, branch, name])
+}

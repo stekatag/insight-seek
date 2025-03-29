@@ -87,6 +87,13 @@ export default function ProjectCreationCard({
   >("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Project creation states
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [projectCreationId, setProjectCreationId] = useState<string | null>(
+    null,
+  );
+  const [projectCreationPolling, setProjectCreationPolling] = useState(false);
+
   // GitHub status for conditional UI
   const { data: githubData } = api.user.getGithubStatus.useQuery();
   const hasGithubConnection = !!githubData?.connected;
@@ -114,6 +121,18 @@ export default function ProjectCreationCard({
       retryDelay: 2000,
     },
   );
+
+  // Project creation status polling
+  const { data: projectCreationStatus } =
+    api.project.getProjectCreationStatus.useQuery(
+      { projectCreationId: projectCreationId || "" },
+      {
+        enabled: projectCreationPolling && !!projectCreationId,
+        refetchInterval: projectCreationPolling ? 2000 : false,
+        retry: projectCreationPolling,
+        retryDelay: 2000,
+      },
+    );
 
   // Handle errors in validation status fetch
   useEffect(() => {
@@ -153,7 +172,6 @@ export default function ProjectCreationCard({
       validationResult.branch !== currentBranch
     ) {
       // This is a stale result, ignore it
-      console.log("Ignoring stale validation result");
       return;
     }
 
@@ -174,12 +192,55 @@ export default function ProjectCreationCard({
     }
   }, [validationResult, validationInitializing, form]);
 
+  // Effect to handle project creation status changes
+  useEffect(() => {
+    if (!projectCreationStatus) return;
+
+    if (
+      projectCreationStatus.status === "COMPLETED" &&
+      projectCreationStatus.projectId
+    ) {
+      // Stop polling once we have the project ID
+      setProjectCreationPolling(false);
+      setIsCreatingProject(false);
+
+      // IMPORTANT: Store the newly created project ID in localStorage - this is the key fix
+      localStorage.setItem(
+        "lastCreatedProject",
+        projectCreationStatus.projectId,
+      );
+
+      // Show success message
+      toast.success("Project created successfully!");
+
+      // Navigate to the dashboard with the new project ID
+      onSuccess(projectCreationStatus.projectId);
+    } else if (projectCreationStatus.status === "ERROR") {
+      // Stop polling on error
+      setProjectCreationPolling(false);
+      setIsCreatingProject(false);
+
+      // Show error message
+      toast.error(projectCreationStatus.error || "Failed to create project");
+    } else if (
+      ["INITIALIZING", "CREATING_PROJECT", "INDEXING"].includes(
+        projectCreationStatus.status,
+      )
+    ) {
+      // Ensure polling is active for in-progress projects
+      if (!projectCreationPolling) {
+        setProjectCreationPolling(true);
+      }
+    }
+  }, [projectCreationStatus, onSuccess, projectCreationPolling]);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
-      // Stop all validation processes when component unmounts
+      // Stop all polling processes when component unmounts
       setValidationPolling(false);
       setValidationInitializing(false);
+      setProjectCreationPolling(false);
     };
   }, []);
 
@@ -248,83 +309,59 @@ export default function ProjectCreationCard({
     checkCredits.reset();
   }, [checkCredits]);
 
-  // Project creation mutation
-  const createProject = api.project.createProject.useMutation({
-    onSuccess: async (project) => {
-      // Store the newly created project ID in localStorage
-      localStorage.setItem("lastCreatedProject", project.id);
+  // Start project creation mutation
+  const startProjectCreation = api.project.startProjectCreation.useMutation({
+    onSuccess: async (data) => {
+      const { projectCreationId } = data;
 
-      // Redirect to the project immediately to ensure good user experience
-      toast.success("Project created successfully!");
-      onSuccess(project.id);
+      // Store the project creation ID
+      setProjectCreationId(projectCreationId);
 
-      // Process commits in the background after redirect
+      // Call the Netlify background function directly
       try {
-        await fetch("/api/process-commits", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        const formData = form.getValues();
+
+        // Direct call to Netlify function endpoint
+        const netlifyFunctionUrl = `${window.location.origin}/api/create-project`;
+
+        await axios.post(
+          netlifyFunctionUrl,
+          {
+            projectCreationId,
+            name: formData.projectName,
+            githubUrl: formData.repoUrl,
+            branch: formData.branch,
+            userId,
           },
-          body: JSON.stringify({
-            projectId: project.id,
-            githubUrl: project.githubUrl,
-            isProjectCreation: true,
-          }),
-        });
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        // Start polling for the status
+        setProjectCreationPolling(true);
       } catch (error) {
-        console.error("Error processing commits:", error);
-        // Don't show an error toast as it might confuse the user
-        // User is already redirected to the project at this point
+        console.error("Error triggering background function:", error);
+        toast.error("Failed to start project creation");
+        setIsCreatingProject(false);
       }
     },
     onError: (error) => {
-      // Check if this is a "Stream closed" error - which can be safely ignored
-      // as the project is actually created successfully but the connection timed out
-      if (isAbortOrTimeoutError(error)) {
-        console.warn(
-          "Project creation timed out, but likely succeeded:",
-          error,
-        );
+      console.error("Project creation error:", error);
 
-        // Check if we have a projectId in the error object (added by the server)
-        // @ts-expect-error - custom field we're adding on the server
-        const projectId = error.data?.projectId;
+      // Get a specific error message if available
+      const errorMessage = error.message || "Failed to start project creation";
 
-        if (projectId) {
-          // We have the project ID, so we can redirect as if it succeeded
-          localStorage.setItem("lastCreatedProject", projectId);
-          toast.success(
-            "Project created successfully! (Connection timed out but project was created)",
-          );
-          onSuccess(projectId);
-        } else {
-          // Try to get the last created project from localStorage
-          const lastProjectId = localStorage.getItem("lastCreatedProject");
+      // Show a more detailed toast message
+      toast.error(errorMessage);
 
-          if (lastProjectId) {
-            toast.success(
-              "Project created successfully! Redirecting to your project.",
-            );
-            onSuccess(lastProjectId);
-            return;
-          }
+      // Always reset the creating state
+      setIsCreatingProject(false);
 
-          // No project ID, redirect to dashboard anyway
-          toast.warning(
-            "Project may have been created, but we couldn't confirm. Please check your dashboard.",
-          );
-          // Add a small delay to ensure the toast is seen
-          setTimeout(() => {
-            window.location.href = "/dashboard";
-          }, 1500);
-        }
-        return;
-      }
-
-      // Handle all other errors normally
-      toast.error(error.message || "Failed to create project");
-      setValidationState("error");
-      setValidationError(error.message || "Failed to create project");
+      // Reset validation state to allow retrying
+      setValidationState("validated");
     },
   });
 
@@ -401,7 +438,10 @@ export default function ProjectCreationCard({
   const onSubmit = (data: CreateProjectFormData) => {
     if (validationState === "validated" && validationResult) {
       // Proceed with project creation
-      createProject.mutate({
+      setIsCreatingProject(true);
+
+      // Start the project creation process
+      startProjectCreation.mutate({
         githubUrl: data.repoUrl,
         name: data.projectName,
         branch: data.branch,
@@ -443,7 +483,7 @@ export default function ProjectCreationCard({
 
   // Get the correct button text based on validation state
   const getButtonText = () => {
-    if (createProject.isPending) {
+    if (isCreatingProject) {
       return "Creating Project...";
     }
 
@@ -460,7 +500,7 @@ export default function ProjectCreationCard({
 
   // Get the appropriate icon for the button
   const getButtonIcon = () => {
-    if (isValidating || createProject.isPending) {
+    if (isValidating || isCreatingProject) {
       // No icon needed when validating or creating (we show a spinner)
       return null;
     }
@@ -713,7 +753,7 @@ export default function ProjectCreationCard({
             variant="outline"
             className="w-full sm:w-auto"
             onClick={() => (window.location.href = "/dashboard")}
-            disabled={createProject.isPending}
+            disabled={isCreatingProject}
           >
             <X className="h-4 w-4" />
             <span>Cancel</span>
@@ -722,7 +762,7 @@ export default function ProjectCreationCard({
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {!hasEnoughCredits && validationState === "validated" && (
               <Link href="/billing" className="w-full sm:w-auto">
-                <Button className="w-full" disabled={createProject.isPending}>
+                <Button className="w-full" disabled={isCreatingProject}>
                   <CreditCard className="h-4 w-4" />
                   <span>Buy Credits</span>
                 </Button>
@@ -736,7 +776,7 @@ export default function ProjectCreationCard({
                 form="project-form"
                 className="w-full"
                 disabled={
-                  createProject.isPending ||
+                  isCreatingProject ||
                   isValidating ||
                   !canValidate ||
                   !formIsValid
@@ -751,7 +791,7 @@ export default function ProjectCreationCard({
                   <>
                     {!isValidating && getButtonIcon()}
                     <span>{getButtonText()}</span>
-                    {(isValidating || createProject.isPending) && (
+                    {(isValidating || isCreatingProject) && (
                       <Spinner className="text-white" size="small" />
                     )}
                   </>
