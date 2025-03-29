@@ -147,26 +147,8 @@ export default async (request: Request) => {
           data: { status: ProjectCreationStatus.COMPLETED },
         });
 
-        // Process commits in the background
-        try {
-          await fetch(
-            `${process.env.NEXT_PUBLIC_APP_URL}/api/process-commits`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                projectId: project.id,
-                githubUrl: project.githubUrl,
-                isProjectCreation: true,
-              }),
-            },
-          );
-        } catch (commitError) {
-          console.error(`Error processing commits: ${commitError}`);
-          // Don't fail for commit processing errors
-        }
+        // We're not going to process commits here - that will be handled by the client
+        // to avoid issues with timing and to make sure the request completes
       } catch (indexError) {
         // Log but don't fail - project was already created
         console.error(`Error during repository indexing: ${indexError}`);

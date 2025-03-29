@@ -53,6 +53,9 @@ export default function CommitLog() {
   // Add a ref to track if a refresh is already in progress to prevent duplicate requests
   const refreshInProgressRef = useRef(false);
 
+  // Track how many refetches we've done for this commit refresh
+  const refetchCountRef = useRef(0);
+
   // Calculate dynamic refetch interval based on pending summaries
   const refetchInterval = hasPendingSummaries
     ? 5000 // 5 seconds if there are pending summaries (faster)
@@ -103,6 +106,9 @@ export default function CommitLog() {
           return;
         }
 
+        // Reset refetch counter at the start of a new refresh cycle
+        refetchCountRef.current = 0;
+
         // Make the direct fetch to the background function from the client side
         await fetch("/api/process-commits", {
           method: "POST",
@@ -118,18 +124,17 @@ export default function CommitLog() {
 
         // First immediate refetch to check for any existing commits
         refetch({ throwOnError: false });
+        refetchCountRef.current++;
 
         // Set a longer timeout for a second refetch to ensure we get all the new commits
         // This longer delay gives the background process enough time to create the commits
         setTimeout(() => {
-          refetch({ throwOnError: false });
-          setLastRefreshTime(Date.now());
-          refreshInProgressRef.current = false; // Reset refresh flag when done
-
-          // Add one more final refetch after the background processing should be complete
-          setTimeout(() => {
+          if (refetchCountRef.current < 3) {
             refetch({ throwOnError: false });
-          }, 3000);
+            refetchCountRef.current++;
+            setLastRefreshTime(Date.now());
+          }
+          refreshInProgressRef.current = false; // Reset refresh flag when done
         }, 4000);
       } catch (error) {
         console.error("Error calling background function:", error);
@@ -213,8 +218,10 @@ export default function CommitLog() {
       if (pending !== hasPendingSummaries) {
         setHasPendingSummaries(pending);
 
-        // If there were pending summaries but now they're all done, do a forced refetch
-        if (!pending && hasPendingSummaries) {
+        // If there were pending summaries but now they're all done, do a forced refetch,
+        // but only if we haven't already done too many refetches
+        if (!pending && hasPendingSummaries && refetchCountRef.current < 3) {
+          refetchCountRef.current++;
           refetch();
         }
       }
@@ -231,6 +238,17 @@ export default function CommitLog() {
       sessionStorage.removeItem("currentProjectIsNew");
     }
   }, [commits]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Reset refresh state when component unmounts
+      refreshInProgressRef.current = false;
+      refetchCountRef.current = 0;
+      localStorage.removeItem("projectCreationInProgress");
+      sessionStorage.removeItem("currentProjectIsNew");
+    };
+  }, []);
 
   // New mutation for confirming reindexing
   const confirmReindexMutation = api.commit.confirmReindex.useMutation({

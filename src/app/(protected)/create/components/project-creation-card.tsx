@@ -213,6 +213,27 @@ export default function ProjectCreationCard({
       // Set a flag to indicate project creation is happening - this prevents multiple commit refreshes
       localStorage.setItem("projectCreationInProgress", "true");
 
+      // Now that the project is created, manually trigger the commit processing
+      // This ensures it happens on the client side and won't get lost
+      const projectId = projectCreationStatus.projectId;
+      const githubUrl = projectCreationStatus.githubUrl;
+
+      // Send the commit processing request directly from the client
+      fetch("/api/process-commits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId,
+          githubUrl,
+          isProjectCreation: true, // Always true for new projects
+        }),
+      }).catch((error) => {
+        console.error("Error processing commits:", error);
+        // Don't let this error prevent navigation
+      });
+
       // Show success message
       toast.success("Project created successfully!");
 
@@ -244,6 +265,9 @@ export default function ProjectCreationCard({
       setValidationPolling(false);
       setValidationInitializing(false);
       setProjectCreationPolling(false);
+
+      // Clean up any pending localStorage flags to prevent state leakage
+      localStorage.removeItem("projectCreationInProgress");
     };
   }, []);
 
