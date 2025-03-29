@@ -210,6 +210,9 @@ export default function ProjectCreationCard({
         projectCreationStatus.projectId,
       );
 
+      // Set a flag to indicate project creation is happening - this prevents multiple commit refreshes
+      localStorage.setItem("projectCreationInProgress", "true");
+
       // Show success message
       toast.success("Project created successfully!");
 
@@ -321,11 +324,8 @@ export default function ProjectCreationCard({
       try {
         const formData = form.getValues();
 
-        // Direct call to Netlify function endpoint
-        const netlifyFunctionUrl = `${window.location.origin}/api/create-project`;
-
         await axios.post(
-          netlifyFunctionUrl,
+          "/api/create-project",
           {
             projectCreationId,
             name: formData.projectName,

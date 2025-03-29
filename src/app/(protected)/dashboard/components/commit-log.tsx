@@ -68,10 +68,9 @@ export default function CommitLog() {
     {
       enabled: !!projectId,
       refetchInterval,
-      staleTime: hasPendingSummaries ? 1000 : 30000, // Make data stale more quickly (was 60000)
+      staleTime: hasPendingSummaries ? 1000 : 60000,
       refetchOnWindowFocus: true, // Add this to refetch when the window regains focus
       refetchOnMount: true, // Always refetch when component mounts
-      networkMode: "always", // Always try to fetch from network
     },
   );
 
@@ -91,6 +90,19 @@ export default function CommitLog() {
       toast.success("Refreshing commits...");
 
       try {
+        // Check if project creation is already in progress - if so, skip this request
+        const projectCreationInProgress =
+          localStorage.getItem("projectCreationInProgress") === "true";
+        if (projectCreationInProgress) {
+          // Still clear the flag to ensure proper state
+          localStorage.removeItem("projectCreationInProgress");
+
+          // Don't send another request, just refresh UI
+          refreshInProgressRef.current = false;
+          refetch({ throwOnError: false });
+          return;
+        }
+
         // Make the direct fetch to the background function from the client side
         await fetch("/api/process-commits", {
           method: "POST",
@@ -159,6 +171,16 @@ export default function CommitLog() {
 
     // Don't start another refresh if one is already in progress
     if (refreshInProgressRef.current) return;
+
+    // If project creation is in progress, we'll skip automatic refresh and let the background
+    // function handle it - this prevents multiple refreshes
+    const projectCreationInProgress =
+      localStorage.getItem("projectCreationInProgress") === "true";
+    if (projectCreationInProgress) {
+      // Clear the flag after we've detected it
+      localStorage.removeItem("projectCreationInProgress");
+      return;
+    }
 
     // If this is a new project, we should always refresh commits
     if (isNewProject) {

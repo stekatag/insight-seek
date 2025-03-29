@@ -149,17 +149,20 @@ export default async (request: Request) => {
 
         // Process commits in the background
         try {
-          await fetch("/api/process-commits", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
+          await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL}/api/process-commits`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                projectId: project.id,
+                githubUrl: project.githubUrl,
+                isProjectCreation: true,
+              }),
             },
-            body: JSON.stringify({
-              projectId: project.id,
-              githubUrl: project.githubUrl,
-              isProjectCreation: true,
-            }),
-          });
+          );
         } catch (commitError) {
           console.error(`Error processing commits: ${commitError}`);
           // Don't fail for commit processing errors
