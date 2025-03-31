@@ -51,8 +51,30 @@ async function getCommitHashes(
 ): Promise<CommitData[]> {
   try {
     const { owner, repo } = parseGitHubUrl(githubUrl);
+
+    // Create octokit with the GitHub token if available
     const octokit = createRobustOctokit(githubToken);
 
+    // Try to get the repository first to test access
+    try {
+      await octokit.rest.repos.get({
+        owner,
+        repo,
+      });
+      console.log(
+        `Successfully verified access to repository ${owner}/${repo}`,
+      );
+    } catch (repoError: any) {
+      console.error(`Error accessing repository ${owner}/${repo}:`, repoError);
+      if (repoError.status === 404) {
+        throw new Error(
+          `Repository not found or no access to ${owner}/${repo}. For private repositories, ensure GitHub App is installed.`,
+        );
+      }
+      throw repoError;
+    }
+
+    // Now fetch the commits
     const { data } = await octokit.rest.repos.listCommits({
       owner,
       repo,
@@ -102,41 +124,51 @@ async function processSingleCommit(
     const octokit = createRobustOctokit(githubToken);
 
     // Get the commit diff
-    const { data } = await octokit.rest.repos.getCommit({
-      owner,
-      repo,
-      ref: commitHash,
-      mediaType: { format: "diff" },
-    });
+    try {
+      const { data } = await octokit.rest.repos.getCommit({
+        owner,
+        repo,
+        ref: commitHash,
+        mediaType: { format: "diff" },
+      });
 
-    const diffData = data as unknown as string;
+      const diffData = data as unknown as string;
 
-    // Extract modified files from the diff
-    const modifiedFiles = extractModifiedFiles(diffData);
-    console.log(
-      `Extracted ${modifiedFiles.length} modified files from commit ${commitHash}`,
-    );
+      // Extract modified files from the diff
+      const modifiedFiles = extractModifiedFiles(diffData);
+      console.log(
+        `Extracted ${modifiedFiles.length} modified files from commit ${commitHash}`,
+      );
 
-    // Generate summary using AI
-    const summary = await aiSummarizeCommit(diffData);
+      // Generate summary using AI
+      const summary = await aiSummarizeCommit(diffData);
 
-    // For project creation, we don't need to reindex since files are already indexed
-    const needsReindex = isProjectCreation ? false : modifiedFiles.length > 0;
+      // For project creation, we don't need to reindex since files are already indexed
+      const needsReindex = isProjectCreation ? false : modifiedFiles.length > 0;
 
-    // Update commit with summary and modified files in database
-    await db.commit.updateMany({
-      where: { projectId, commitHash },
-      data: {
-        summary: summary || "No significant changes detected",
-        modifiedFiles,
-        needsReindex: needsReindex, // Don't mark for reindexing if this is during project creation
-      },
-    });
+      // Update commit with summary and modified files in database
+      await db.commit.updateMany({
+        where: { projectId, commitHash },
+        data: {
+          summary: summary || "No significant changes detected",
+          modifiedFiles,
+          needsReindex: needsReindex, // Don't mark for reindexing if this is during project creation
+        },
+      });
 
-    console.log(
-      `Successfully processed commit ${commitHash} with ${modifiedFiles.length} modified files. Reindexing needed: ${needsReindex}`,
-    );
-    return summary;
+      console.log(
+        `Successfully processed commit ${commitHash} with ${modifiedFiles.length} modified files. Reindexing needed: ${needsReindex}`,
+      );
+      return summary;
+    } catch (commitError: any) {
+      console.error(`Error fetching commit ${commitHash}:`, commitError);
+      if (commitError.status === 404) {
+        throw new Error(
+          `Commit ${commitHash} not found in repository ${owner}/${repo}`,
+        );
+      }
+      throw commitError;
+    }
   } catch (error) {
     console.error(`Error processing commit ${commitHash}:`, error);
 
@@ -307,6 +339,9 @@ export default async (request: Request) => {
       `Processing commits for project ${projectId}${isProjectCreation ? " (during project creation)" : ""}`,
     );
 
+    // If we don't have a GitHub token but this is a private repo, we need to fetch it from the database
+    let effectiveGithubToken = githubToken;
+
     // Return a quick response to the client
     const response = new Response(
       JSON.stringify({
@@ -323,8 +358,42 @@ export default async (request: Request) => {
     );
 
     try {
-      // 1. Fetch commits from GitHub
-      const commits = await getCommitHashes(githubUrl, githubToken);
+      // If we don't have a token yet, try to get the project owner's token
+      if (!effectiveGithubToken) {
+        try {
+          // Get the project to find its owner
+          const project = await db.project.findUnique({
+            where: { id: projectId },
+            select: {
+              userToProjects: {
+                select: { userId: true },
+                take: 1,
+              },
+            },
+          });
+
+          const projectOwner = project?.userToProjects[0]?.userId;
+
+          if (projectOwner) {
+            const userToken = await db.userGitHubToken.findUnique({
+              where: { userId: projectOwner },
+              select: { token: true },
+            });
+
+            if (userToken?.token) {
+              console.log(
+                "Found GitHub token for project owner, using it for commit processing",
+              );
+              effectiveGithubToken = userToken.token;
+            }
+          }
+        } catch (tokenError) {
+          console.error("Error fetching GitHub token:", tokenError);
+        }
+      }
+
+      // 1. Fetch commits from GitHub - use the token if we have one
+      const commits = await getCommitHashes(githubUrl, effectiveGithubToken);
       console.log(`Fetched ${commits.length} commits from GitHub`);
 
       // 2. Filter out commits that are already in the database
@@ -370,7 +439,7 @@ export default async (request: Request) => {
             commit.commitHash,
             projectId,
             githubUrl,
-            githubToken,
+            effectiveGithubToken,
             isProjectCreation,
           );
         } catch (err) {

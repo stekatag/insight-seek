@@ -100,8 +100,6 @@ export async function deleteFile(fileUrl: string, firebaseToken?: string) {
     const encodedPath = filePathMatch[1];
     const filePath = decodeURIComponent(encodedPath);
 
-    console.log("Deleting file at path:", filePath);
-
     const fileRef = ref(storage, filePath);
     await deleteObject(fileRef);
     return true;

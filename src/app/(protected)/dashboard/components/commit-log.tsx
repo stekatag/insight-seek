@@ -366,12 +366,12 @@ export default function CommitLog() {
         >
           {refreshInProgressRef.current ? (
             <>
-              <Spinner size="small" className="mr-2" />
+              <Spinner size="small" className="text-white" />
               Refreshing...
             </>
           ) : (
             <>
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
               Refresh Commits
             </>
           )}

@@ -47,11 +47,8 @@ export default function DeleteMeetingButton({
           throw new Error("Failed to get Firebase token - token is null");
         }
 
-        console.log("Got Firebase token successfully");
-
         // Sign in to Firebase
         await signInWithCustomToken(auth, firebaseToken);
-        console.log("Firebase authentication successful");
       } catch (authError) {
         console.error("Firebase authentication error:", authError);
         toast.error("Authentication failed. Please try again.");
@@ -64,7 +61,6 @@ export default function DeleteMeetingButton({
       // Now delete the file from Firebase Storage
       try {
         await deleteFile(result.meetingUrl, firebaseToken);
-        console.log("File deleted successfully from Firebase Storage");
       } catch (fileError) {
         console.error(
           "Failed to delete file from Firebase Storage:",

@@ -86,7 +86,11 @@ export default function ProjectCard({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
-                  <DeleteProjectButton minimal />
+                  <DeleteProjectButton
+                    minimal
+                    projectId={project.id}
+                    projectName={project.name}
+                  />
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

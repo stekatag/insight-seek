@@ -21,32 +21,48 @@ import { Spinner } from "@/components/ui/spinner";
 
 interface DeleteProjectButtonProps {
   minimal?: boolean;
+  projectId?: string;
+  projectName?: string;
 }
 
 export default function DeleteProjectButton({
   minimal = false,
+  projectId: passedProjectId,
+  projectName: passedProjectName,
 }: DeleteProjectButtonProps) {
   const [open, setOpen] = useState(false);
   const deleteProject = api.project.deleteProject.useMutation();
-  const { project, projectId, setProjectId } = useProject();
+  const { project, projectId: selectedProjectId, setProjectId } = useProject();
   const router = useRouter();
   const refetch = useRefetch();
 
+  // Use either the passed projectId or the selected projectId
+  const effectiveProjectId = passedProjectId || selectedProjectId;
+  const effectiveProjectName = passedProjectName || project?.name;
+
   const handleDeleteProject = async () => {
-    if (!projectId) return;
+    if (!effectiveProjectId) return;
 
     try {
-      await deleteProject.mutateAsync({ projectId });
+      await deleteProject.mutateAsync({ projectId: effectiveProjectId });
       toast.success("Project deleted successfully");
       setOpen(false);
 
-      // Clear selected project and redirect to dashboard
-      setProjectId("");
+      // If we're deleting the currently selected project, clear the selection
+      if (effectiveProjectId === selectedProjectId) {
+        setProjectId("");
+      }
 
       // Refetch projects to update the sidebar
       refetch();
 
-      router.push("/dashboard");
+      // Only redirect if we're on the dashboard and deleting the selected project
+      if (
+        window.location.pathname.includes("/dashboard") &&
+        effectiveProjectId === selectedProjectId
+      ) {
+        router.push("/dashboard");
+      }
     } catch (error) {
       console.error(error);
       toast.error("Failed to delete project");
@@ -60,7 +76,8 @@ export default function DeleteProjectButton({
     setOpen(true);
   };
 
-  if (!project) return null;
+  // Don't render if we have no project to delete
+  if (!effectiveProjectId && !project) return null;
 
   return (
     <>
@@ -99,7 +116,7 @@ export default function DeleteProjectButton({
             <DialogTitle>Delete Project</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{" "}
-              <span className="font-semibold">{project.name}</span>?
+              <span className="font-semibold">{effectiveProjectName}</span>?
             </DialogDescription>
           </DialogHeader>
 
