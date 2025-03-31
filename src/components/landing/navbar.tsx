@@ -122,9 +122,14 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
             <div>
               <SheetHeader className="mb-4 ml-4">
                 <SheetTitle className="flex items-center">
-                  <Link href="/" className="flex items-center">
-                    <ChevronsDown className="bg-gradient-to-tr border-secondary from-primary via-primary/70 to-primary rounded-lg w-9 h-9 mr-2 border text-white" />
-                    Shadcn
+                  <Link
+                    href="/"
+                    className="font-bold text-lg flex items-center gap-2"
+                  >
+                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                      <ApplicationLogo className="p-1.5" />
+                    </div>
+                    <span>InsightSeek</span>
                   </Link>
                 </SheetTitle>
               </SheetHeader>
