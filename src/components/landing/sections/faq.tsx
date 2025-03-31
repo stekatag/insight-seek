@@ -21,7 +21,7 @@ const FAQList: FAQProps[] = [
   {
     question: "What file formats are supported for meeting analysis?",
     answer:
-      "InsightSeek supports most common audio formats including MP3, WAV, and M4A. Video formats are not supported, please provide audio files for analysis. For best results, we recommend clear audio recordings with minimal background noise and file sizes up to 50MB. There is no limit to the length of the audio file, but for best results we recommend up to 3 hours.",
+      "InsightSeek supports most common audio formats including MP3, WAV, and M4A. Video formats are not supported, please provide audio files for analysis. For best results, we recommend clear audio recordings with minimal background noise and file sizes up to 100 MB. There is no limit to the length of the audio file, but for best results we recommend up to 3 hours.",
     value: "item-2",
   },
   {
@@ -39,7 +39,7 @@ const FAQList: FAQProps[] = [
   {
     question: "Is there a limit to repository size or meeting length?",
     answer:
-      "There are no limits to repository size, but for best results, we recommend repositories with up to 1000 files. For meetings, we recommend audio files up to 50MB. There is no limit to the length of the audio file, but for best results we recommend up to 3 hours.",
+      "There are no limits to repository size, but for best results, we recommend repositories with up to 1000 files. For meetings, we recommend audio files up to 100 MB. There is no limit to the length of the audio file, but for best results we recommend up to 3 hours.",
     value: "item-5",
   },
   {

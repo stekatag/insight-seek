@@ -153,7 +153,7 @@ export default function MeetingsPage() {
                       {isProcessing ? (
                         <HoverCard>
                           <HoverCardTrigger asChild>
-                            <Badge className="cursor-help bg-yellow-500 hover:bg-yellow-600">
+                            <Badge className="cursor-help bg-yellow-600 hover:bg-yellow-700">
                               <Clock className="mr-1 h-3 w-3" />
                               Processing...
                             </Badge>

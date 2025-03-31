@@ -103,7 +103,7 @@ export default function MeetingCard() {
       "audio/*": [".mp3", ".wav", ".m4a"],
     },
     multiple: false,
-    maxSize: 50_000_000, // 50MB max size
+    maxSize: 100_000_000, // 100MB max size
     noClick: true,
     onDrop: async (acceptedFiles) => {
       if (!project || acceptedFiles.length === 0) return;
@@ -286,7 +286,7 @@ export default function MeetingCard() {
               </Button>
 
               <p className="mt-4 text-xs text-muted-foreground">
-                Supported formats: .mp3, .wav, .m4a (max 50MB)
+                Supported formats: .mp3, .wav, .m4a (max 100 MB)
               </p>
             </>
           ) : (
@@ -311,7 +311,7 @@ export default function MeetingCard() {
               </div>
 
               <h3 className="mb-2 text-base font-medium">
-                Processing your meeting
+                Uploading your meeting
               </h3>
               <p className="max-w-xs text-sm text-muted-foreground">
                 Your audio is being uploaded and analyzed. This might take a few
