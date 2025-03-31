@@ -197,7 +197,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                 >
                   <Link
                     aria-label="View on GitHub"
-                    href="https://github.com/nobruf/shadcn-landing-page.git"
+                    href="https://github.com/stekatag/insight-seek"
                     target="_blank"
                   >
                     <GitHubLogoIcon className="size-5" />
@@ -271,7 +271,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
           >
             <Link
               aria-label="View on GitHub"
-              href="https://github.com/nobruf/shadcn-landing-page.git"
+              href="https://github.com/stekatag/insight-seekt"
               target="_blank"
             >
               <GitHubLogoIcon className="size-5" />
