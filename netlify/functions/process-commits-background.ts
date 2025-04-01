@@ -3,7 +3,7 @@ import type { Config } from "@netlify/functions";
 import { z } from "zod";
 
 import { aiSummarizeCommit } from "@/lib/gemini";
-import { createRobustOctokit } from "@/lib/github-api";
+import { createRobustOctokit, verifyGitHubToken } from "@/lib/github-api";
 
 // Define the request body schema
 const bodyParser = z.object({
@@ -375,20 +375,37 @@ export default async (request: Request) => {
           const projectOwner = project?.userToProjects[0]?.userId;
 
           if (projectOwner) {
-            const userToken = await db.userGitHubToken.findUnique({
-              where: { userId: projectOwner },
-              select: { token: true },
-            });
+            // Verify the token for the owner
+            const tokenVerification = await verifyGitHubToken(projectOwner);
 
-            if (userToken?.token) {
-              console.log(
-                "Found GitHub token for project owner, using it for commit processing",
+            if (tokenVerification.isValid) {
+              // Fetch the latest token again (it might have refreshed)
+              const userToken = await db.userGitHubToken.findUnique({
+                where: { userId: projectOwner },
+                select: { token: true },
+              });
+
+              if (userToken?.token) {
+                console.log(
+                  "Verified GitHub token for project owner, using it for commit processing",
+                );
+                effectiveGithubToken = userToken.token;
+              } else {
+                console.warn(
+                  "Token verified but couldn't retrieve it from database. Proceeding without token.",
+                );
+              }
+            } else {
+              console.warn(
+                `Token verification failed for user ${projectOwner}: ${tokenVerification.error}`,
               );
-              effectiveGithubToken = userToken.token;
             }
           }
         } catch (tokenError) {
-          console.error("Error fetching GitHub token:", tokenError);
+          console.error(
+            "Error fetching or verifying GitHub token:",
+            tokenError,
+          );
         }
       }
 
