@@ -12,7 +12,6 @@ InsightSeek is an AI-powered platform for code and meeting analysis, designed to
 
 ### 🎙️ Meeting Analysis
 
-- **Meeting Transcription**: Convert meeting recordings to searchable text with speaker identification
 - **Chapter Summaries**: Automatically generate summaries of key discussion points
 - **Issue Tracking**: Identify action items and key topics from meetings
 - **Language Support**: Currently supports English language recordings only
@@ -21,7 +20,7 @@ InsightSeek is an AI-powered platform for code and meeting analysis, designed to
 
 InsightSeek is built with a modern tech stack:
 
-- **Frontend**: Next.js 19, React, Tailwind CSS, Radix UI
+- **Frontend**: Next.js 15, React 19, Tailwind CSS, Radix UI
 - **Backend**: tRPC, Prisma, PostgreSQL with vector extensions
 - **AI**: Google Gemini AI, AssemblyAI, vector embeddings
 - **Infrastructure**: Netlify serverless functions
