@@ -9,7 +9,6 @@ export const meetingRouter = createTRPCRouter({
   uploadMeeting: protectedProdecure
     .input(
       z.object({
-        projectId: z.string(),
         meetingUrl: z.string(),
         name: z.string(),
         durationMinutes: z.number().int().positive(),
@@ -39,11 +38,11 @@ export const meetingRouter = createTRPCRouter({
           data: { credits: { decrement: input.creditsToCharge } },
         });
 
-        // Create the meeting
+        // Create the meeting, associate with user
         const meeting = await tx.meeting.create({
           data: {
             meetingUrl: input.meetingUrl,
-            projectId: input.projectId,
+            userId: ctx.user.userId!, // Associate with user
             name: input.name,
             status: "PROCESSING",
           },
@@ -55,15 +54,14 @@ export const meetingRouter = createTRPCRouter({
       return meeting;
     }),
 
-  // Get all meetings for a project
-  getMeetings: protectedProdecure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.meeting.findMany({
-        where: { projectId: input.projectId },
-        include: { issues: true },
-      });
-    }),
+  // Get all meetings for the current user
+  getMeetings: protectedProdecure.query(async ({ ctx }) => {
+    return await ctx.db.meeting.findMany({
+      where: { userId: ctx.user.userId! },
+      include: { issues: true },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
 
   // Delete a meeting and its related data
   deleteMeeting: protectedProdecure
@@ -71,17 +69,11 @@ export const meetingRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { meetingId } = input;
 
-      // Find the meeting first
+      // Find the meeting by ID and ensure the user owns it
       const meeting = await ctx.db.meeting.findUnique({
         where: {
           id: meetingId,
-          project: {
-            userToProjects: {
-              some: {
-                userId: ctx.user.userId!,
-              },
-            },
-          },
+          userId: ctx.user.userId!, // Verify ownership
         },
         select: {
           id: true,
@@ -127,19 +119,22 @@ export const meetingRouter = createTRPCRouter({
 
         // 6. Delete the meeting from the database
         await tx.meeting.delete({
-          where: { id: meetingId },
+          where: { id: meetingId }, // Already verified ownership
         });
       });
 
       return { success: true, meetingUrl: meeting.meetingUrl };
     }),
 
-  // Get a specific meeting by ID
+  // Get a specific meeting by ID (verify ownership)
   getMeetingById: protectedProdecure
     .input(z.object({ meetingId: z.string() }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.meeting.findUnique({
-        where: { id: input.meetingId },
+        where: {
+          id: input.meetingId,
+          userId: ctx.user.userId!, // Verify ownership
+        },
         include: { issues: true },
       });
     }),

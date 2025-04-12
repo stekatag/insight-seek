@@ -27,6 +27,7 @@ model User {
     stripeTransactions StripeTransaction[]
     gitHubToken UserGitHubToken?
     chats Chat[] // Add this relation
+    meetings Meeting[] // Add this relation for meetings
 }
 
 model Project {
@@ -42,7 +43,6 @@ model Project {
     commits        Commit[]
     SourceCodeEmbedding SourceCodeEmbedding[]
     savedQuestions Question[]
-    meetings Meeting[]
     chats Chat[] // Add this relation
 }
 
@@ -93,8 +93,8 @@ model Meeting {
 
     meetingUrl String // Firebase storage URL
 
-    projectId String
-    project  Project @relation(fields: [projectId], references: [id])
+    userId String
+    user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     status MeetingStatus @default(PROCESSING)
 
@@ -145,8 +145,8 @@ model Question {
 
     filesReferences Json?
 
-    projectId String
-    project  Project @relation(fields: [projectId], references: [id])
+    projectId String?
+    project  Project? @relation(fields: [projectId], references: [id])
 
     userId String
     user   User   @relation(fields: [userId], references: [id])
@@ -198,8 +198,8 @@ model Chat {
     updatedAt DateTime @updatedAt
     title     String   // Title based on first question
     
-    projectId String
-    project   Project  @relation(fields: [projectId], references: [id])
+    projectId String?
+    project   Project? @relation(fields: [projectId], references: [id])
     
     userId    String
     user      User     @relation(fields: [userId], references: [id])

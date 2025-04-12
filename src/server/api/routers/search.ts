@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { createTRPCRouter, protectedProdecure } from "../trpc";
 
 export const searchRouter = createTRPCRouter({
@@ -51,30 +52,52 @@ export const searchRouter = createTRPCRouter({
         orderBy: { updatedAt: "desc" },
       });
 
-      // Search questions
+      // Search questions (both project-related and meeting-related)
       const questions = await ctx.db.question.findMany({
         where: {
-          projectId: { in: projectIds },
+          // Filter by user ID for all their questions
+          userId: userId,
+          // Remove projectId filter to include meeting questions
+          // projectId: { in: projectIds },
           OR: [
             { question: { contains: query, mode: "insensitive" } },
             { answer: { contains: query, mode: "insensitive" } },
           ],
         },
         include: {
+          // Keep project for context (will be null for meeting questions)
           project: { select: { name: true } },
+          // Include chatId and meetingId (if applicable) for linking
+          chat: { select: { id: true, meetingId: true } },
         },
         take: limit,
         orderBy: { createdAt: "desc" },
       });
 
-      // Search meetings
+      // Search meetings - Now searches user's completed meetings
       const meetings = await ctx.db.meeting.findMany({
         where: {
-          projectId: { in: projectIds },
-          name: { contains: query, mode: "insensitive" },
+          // Filter by user ID
+          userId: userId,
+          // Filter by status
+          status: "COMPLETED",
+          OR: [
+            // Search meeting name
+            { name: { contains: query, mode: "insensitive" } },
+            // Also search within related issues
+            {
+              issues: {
+                some: {
+                  OR: [
+                    { headline: { contains: query, mode: "insensitive" } },
+                    { summary: { contains: query, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
+          ],
         },
         include: {
-          project: { select: { name: true } },
           issues: {
             where: {
               OR: [
@@ -82,7 +105,7 @@ export const searchRouter = createTRPCRouter({
                 { summary: { contains: query, mode: "insensitive" } },
               ],
             },
-            take: 1,
+            take: 1, // Limit to one matching issue for preview
           },
         },
         take: limit,

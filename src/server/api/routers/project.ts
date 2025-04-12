@@ -211,13 +211,10 @@ export const projectRouter = createTRPCRouter({
       return await ctx.db.$transaction(
         async (tx) => {
           // Delete chats and related questions
-          // First find all chats for this project
           const chats = await tx.chat.findMany({
             where: { projectId: input.projectId },
             select: { id: true },
           });
-
-          // Then delete all questions associated with these chats
           await tx.question.deleteMany({
             where: {
               OR: [
@@ -226,50 +223,20 @@ export const projectRouter = createTRPCRouter({
               ],
             },
           });
-
-          // Now delete the chats themselves
           await tx.chat.deleteMany({
             where: { projectId: input.projectId },
           });
 
-          // Delete meetings and related data
-          const meetings = await tx.meeting.findMany({
-            where: { projectId: input.projectId },
-            select: { id: true },
-          });
-
-          for (const meeting of meetings) {
-            await tx.meetingEmbedding.deleteMany({
-              where: { meetingId: meeting.id },
-            });
-
-            await tx.issue.deleteMany({
-              where: { meetingId: meeting.id },
-            });
-          }
-
-          await tx.meeting.deleteMany({
-            where: { projectId: input.projectId },
-          });
-
           // Delete standalone questions that weren't associated with chats
-          // Note: we already deleted chat-associated questions above
-          // This is technically redundant with the earlier deletion but ensures we get everything
           await tx.question.deleteMany({
             where: { projectId: input.projectId },
           });
-
-          // Delete code embeddings
           await tx.sourceCodeEmbedding.deleteMany({
             where: { projectId: input.projectId },
           });
-
-          // Delete commits
           await tx.commit.deleteMany({
             where: { projectId: input.projectId },
           });
-
-          // Delete user to project relationships
           await tx.userToProject.deleteMany({
             where: { projectId: input.projectId },
           });

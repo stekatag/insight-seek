@@ -8,7 +8,6 @@ export const meetingChatRouter = createTRPCRouter({
     .input(
       z.object({
         meetingId: z.string(),
-        projectId: z.string(),
         question: z.string(),
         answer: z.string(),
       }),
@@ -19,7 +18,6 @@ export const meetingChatRouter = createTRPCRouter({
         const chat = await tx.chat.create({
           data: {
             title: input.question.slice(0, 100), // Use first question as title
-            projectId: input.projectId,
             userId: ctx.user.userId!,
             meetingId: input.meetingId, // Associate with meeting
           },
@@ -30,7 +28,6 @@ export const meetingChatRouter = createTRPCRouter({
             question: input.question,
             answer: input.answer.trim(), // Ensure we trim any whitespace
             filesReferences: [], // No files for meeting questions
-            projectId: input.projectId,
             userId: ctx.user.userId!,
             chatId: chat.id,
           },
@@ -56,7 +53,7 @@ export const meetingChatRouter = createTRPCRouter({
           id: input.chatId,
           userId: ctx.user.userId!,
         },
-        select: { projectId: true, meetingId: true },
+        select: { id: true }, // Just select id to confirm existence and ownership
       });
 
       if (!chat) {
@@ -71,7 +68,6 @@ export const meetingChatRouter = createTRPCRouter({
             question: input.question,
             answer: input.answer,
             filesReferences: [], // No files for meeting questions
-            projectId: chat.projectId,
             userId: ctx.user.userId!,
             chatId: input.chatId,
             isFollowUp: true,

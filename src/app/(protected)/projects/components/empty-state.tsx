@@ -21,7 +21,7 @@ export default function EmptyState({
   const renderIcon = () => {
     switch (icon) {
       case "folder":
-        return <FolderIcon className="h-12 w-12 text-muted-foreground/50" />;
+        return <FolderIcon className="h-10 w-10 text-muted-foreground/50" />;
       case "search":
         return <SearchIcon className="h-12 w-12 text-muted-foreground/50" />;
       case "panel":

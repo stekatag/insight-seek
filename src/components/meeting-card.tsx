@@ -33,7 +33,6 @@ import {
   getDurationMinutes,
 } from "@/lib/credits";
 import { cn } from "@/lib/utils";
-import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,6 @@ import {
 import { Spinner } from "./ui/spinner";
 
 export default function MeetingCard() {
-  const { project } = useProject();
   const router = useRouter();
   const { getToken } = useAuth();
 
@@ -67,16 +65,11 @@ export default function MeetingCard() {
   const checkCredits = api.meeting.checkMeetingCredits.useMutation();
 
   const processMeeting = useMutation({
-    mutationFn: async (data: {
-      meetingUrl: string;
-      meetingId: string;
-      projectId: string;
-    }) => {
-      const { meetingUrl, meetingId, projectId } = data;
+    mutationFn: async (data: { meetingUrl: string; meetingId: string }) => {
+      const { meetingUrl, meetingId } = data;
       const response = await axios.post("/api/process-meeting", {
         audio_url: meetingUrl,
         meetingId,
-        projectId,
       });
       return response.data;
     },
@@ -106,7 +99,7 @@ export default function MeetingCard() {
     maxSize: 100_000_000, // 100MB max size
     noClick: true,
     onDrop: async (acceptedFiles) => {
-      if (!project || acceptedFiles.length === 0) return;
+      if (acceptedFiles.length === 0) return;
 
       const file = acceptedFiles[0];
       setSelectedFile(file as File);
@@ -150,7 +143,7 @@ export default function MeetingCard() {
   };
 
   const handleProcessUpload = async () => {
-    if (!project || !selectedFile) return;
+    if (!selectedFile) return;
 
     setShowCreditCheck(false);
     setIsUploading(true);
@@ -191,7 +184,6 @@ export default function MeetingCard() {
       // Create meeting and charge credits
       uploadMeeting.mutate(
         {
-          projectId: project.id,
           meetingUrl: downloadURL,
           name: selectedFile.name,
           durationMinutes,
@@ -206,7 +198,6 @@ export default function MeetingCard() {
               .mutateAsync({
                 meetingUrl: downloadURL,
                 meetingId: meeting.id,
-                projectId: project.id,
               })
               .then(() => {
                 router.push("/meetings");
@@ -234,6 +225,7 @@ export default function MeetingCard() {
       console.error(error);
       setIsUploading(false);
       setSelectedFile(null);
+      setAudioDuration(0);
     }
   };
 
@@ -275,7 +267,7 @@ export default function MeetingCard() {
 
               <Button
                 size="lg"
-                disabled={!project}
+                disabled={!!selectedFile}
                 onClick={(e) => {
                   e.stopPropagation();
                   open();

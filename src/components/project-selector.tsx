@@ -76,9 +76,6 @@ export function ProjectSelector({ className }: { className?: string }) {
     setFilteredProjects(filtered);
   }, [searchQuery, sortedProjects]);
 
-  // Determine button state
-  const showButton = !isLoading && sortedProjects && sortedProjects.length > 0;
-
   // Handle input search change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -96,7 +93,7 @@ export function ProjectSelector({ className }: { className?: string }) {
               "w-full justify-between text-left",
               isLoading && "opacity-70",
             )}
-            disabled={isLoading || !showButton}
+            disabled={isLoading}
           >
             {isLoading ? (
               <div className="flex items-center gap-2">

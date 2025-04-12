@@ -16,7 +16,6 @@ import { generateEmbedding } from "@/lib/gemini";
 // Define the request body schema
 const bodyParser = z.object({
   audio_url: z.string(),
-  projectId: z.string(),
   meetingId: z.string(),
 });
 
@@ -24,9 +23,9 @@ export default async (request: Request) => {
   try {
     // Parse request body
     const body = await request.json();
-    const { audio_url, projectId, meetingId } = bodyParser.parse(body);
+    const { audio_url, meetingId } = bodyParser.parse(body);
 
-    console.log(`Processing meeting ${meetingId} for project ${projectId}`);
+    console.log(`Processing meeting ${meetingId}`);
 
     // Update meeting to PROCESSING status
     await db.meeting.update({

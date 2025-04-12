@@ -141,23 +141,16 @@ export default function OnboardingView() {
               </CardTitle>
 
               <CardDescription className="mb-6 max-w-xs">
-                {hasProjects
-                  ? "Select a project to unlock AI-powered meeting analysis."
-                  : "Create a project first to unlock AI-powered meeting analysis."}
+                Upload your meeting recordings to get AI-powered summaries and
+                insights.
               </CardDescription>
 
-              {hasProjects ? (
-                <div className="w-full max-w-xs">
-                  <ProjectSelector />
-                </div>
-              ) : (
-                <Link href="/create">
-                  <Button size="lg" variant="outline">
-                    <Plus className="h-4 w-4 text-primary" aria-hidden="true" />
-                    <span className="text-primary">Create a Project</span>
-                  </Button>
-                </Link>
-              )}
+              <Link href="/meetings">
+                <Button size="lg">
+                  <Presentation className="h-4 w-4" aria-hidden="true" />
+                  Manage Meetings
+                </Button>
+              </Link>
 
               <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />

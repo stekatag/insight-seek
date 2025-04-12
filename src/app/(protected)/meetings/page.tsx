@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Clock, Eye, FileQuestion, Loader2 } from "lucide-react";
+import { Check, Clock, Eye, FileQuestion } from "lucide-react";
 
 import { api } from "@/trpc/react";
-import useProject from "@/hooks/use-project";
 import useRefetch from "@/hooks/use-refetch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,19 +20,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  NoMeetingsEmptyState,
-  NoProjectEmptyState,
-} from "@/components/empty-states";
-import GitBranchName from "@/components/git-branch-name";
+import { NoMeetingsEmptyState } from "@/components/empty-states";
 import MeetingCard from "@/components/meeting-card";
-import { ProjectSelector } from "@/components/project-selector";
 
 import DeleteMeetingButton from "./components/delete-meeting-button";
 
 export default function MeetingsPage() {
-  const { project, projectId } = useProject();
-  const hasProject = !!project;
   const refetch = useRefetch();
 
   // State to track whether we should be polling actively
@@ -44,14 +36,11 @@ export default function MeetingsPage() {
   const NO_POLLING = false; // Disable polling when no processing meetings
 
   const { data: meetings, isLoading } = api.meeting.getMeetings.useQuery(
-    { projectId },
+    undefined,
     {
-      // Only enable refetching if there's a project selected
-      enabled: hasProject,
-      // Use dynamic refetchInterval based on processing status
+      enabled: true,
       refetchInterval: shouldPoll ? ACTIVE_POLL_INTERVAL : NO_POLLING,
       staleTime: 0,
-      // Make sure we're always getting fresh data when the component mounts
       refetchOnMount: true,
     },
   );
@@ -69,15 +58,6 @@ export default function MeetingsPage() {
     }
   }, [meetings]);
 
-  // Show empty state when no project exists
-  if (!hasProject) {
-    return (
-      <div className="space-y-6">
-        <NoProjectEmptyState type="meetings" />
-      </div>
-    );
-  }
-
   // Get counts for status summary
   const processingCount =
     meetings?.filter((m) => m.status === "PROCESSING").length || 0;
@@ -92,14 +72,10 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-6">
-      <ProjectSelector className="mb-4" />
       <MeetingCard />
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold">
-          Meetings for {project?.name}
-          <GitBranchName className="mt-2" />
-        </h2>
+        <h2 className="text-xl font-semibold">My Meetings</h2>
 
         {meetings && meetings.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

@@ -27,16 +27,6 @@ import useRefetch from "@/hooks/use-refetch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import AskQuestionCard from "@/components/chat/ask-question-card";
 import { ChatProvider, useChatContext } from "@/components/chat/chat-context";
@@ -196,107 +186,6 @@ function MeetingDetailContent() {
     if (!chats) return 1;
     return Math.ceil((chats?.length || 0) / MEETING_ITEMS_PER_PAGE);
   }, [chats]);
-
-  // Function to generate pagination items
-  const renderPaginationItems = () => {
-    const items = [];
-
-    // For small number of pages, show all
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) {
-        items.push(
-          <PaginationItem key={i}>
-            <PaginationLink
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                updatePage(i);
-              }}
-              isActive={currentPage === i}
-            >
-              {i}
-            </PaginationLink>
-          </PaginationItem>,
-        );
-      }
-      return items;
-    }
-
-    // For larger numbers, use a simpler approach
-    items.push(
-      <PaginationItem key={1}>
-        <PaginationLink
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            updatePage(1);
-          }}
-          isActive={currentPage === 1}
-        >
-          1
-        </PaginationLink>
-      </PaginationItem>,
-    );
-
-    // Add ellipsis if not showing page 2
-    if (currentPage > 3) {
-      items.push(
-        <PaginationItem key="ellipsis-start">
-          <PaginationEllipsis />
-        </PaginationItem>,
-      );
-    }
-
-    // Show current page and neighbors
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(totalPages - 1, currentPage + 1);
-
-    for (let i = start; i <= end; i++) {
-      items.push(
-        <PaginationItem key={i}>
-          <PaginationLink
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              updatePage(i);
-            }}
-            isActive={currentPage === i}
-          >
-            {i}
-          </PaginationLink>
-        </PaginationItem>,
-      );
-    }
-
-    // Add ellipsis if not showing second-to-last page
-    if (currentPage < totalPages - 2) {
-      items.push(
-        <PaginationItem key="ellipsis-end">
-          <PaginationEllipsis />
-        </PaginationItem>,
-      );
-    }
-
-    // Add last page
-    if (totalPages > 1) {
-      items.push(
-        <PaginationItem key={totalPages}>
-          <PaginationLink
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              updatePage(totalPages);
-            }}
-            isActive={currentPage === totalPages}
-          >
-            {totalPages}
-          </PaginationLink>
-        </PaginationItem>,
-      );
-    }
-
-    return items;
-  };
 
   // Loading state
   if (meetingLoading) {
@@ -487,7 +376,6 @@ function MeetingDetailContent() {
                 createChatMutation={async (data) => {
                   return createMeetingChat.mutateAsync({
                     meetingId: data.meetingId,
-                    projectId: meeting?.projectId || "",
                     question: data.question,
                     answer: data.answer,
                   });

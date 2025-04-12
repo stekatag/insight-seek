@@ -15,6 +15,8 @@ import { useDebounceValue } from "usehooks-ts";
 
 import { api } from "@/trpc/react";
 import { truncateText, TRUNCATION_LIMITS } from "@/lib/utils";
+// Import the project hook
+import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -38,6 +40,9 @@ export function SearchBar() {
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearchTerm] = useDebounceValue(inputValue, 300);
 
+  // Get the setProjectId function from the hook
+  const { setProjectId } = useProject();
+
   // Fetch search results
   const { data, isLoading, isFetching } = api.search.search.useQuery(
     { query: debouncedSearchTerm, limit: 5 },
@@ -56,10 +61,35 @@ export function SearchBar() {
 
       switch (type) {
         case "project":
-          router.push("/dashboard");
+          // Ensure id is a valid string before setting/navigating
+          if (typeof id === "string") {
+            // Set the selected project ID first
+            setProjectId(id);
+            // Then navigate to the dashboard
+            router.push("/dashboard");
+          } else {
+            console.error("Invalid project ID in search selection:", value);
+          }
           break;
         case "question":
-          router.push(`/qa?questionId=${id}`);
+          // Find the selected question to get its chatId and potentially meetingId
+          const question = data?.questions.find((q) => q.id === id);
+          const chatId = question?.chat?.id;
+          const meetingId = question?.chat?.meetingId;
+
+          if (chatId) {
+            if (meetingId) {
+              // It's a meeting question, navigate to the meeting page with chat param
+              router.push(`/meetings/${meetingId}?chat=${chatId}`);
+            } else {
+              // It's a project question, navigate to the QA page with chat param
+              router.push(`/qa?chat=${chatId}`);
+            }
+          } else {
+            // Fallback if chatId is somehow missing
+            console.warn(`Could not find chatId for question ${id}`);
+            router.push("/qa"); // Default fallback to QA page
+          }
           break;
         case "meeting":
           router.push(`/meetings/${id}`);
@@ -67,7 +97,7 @@ export function SearchBar() {
         case "commit": {
           // Find the commit by id to get hash and repo URL
           const commit = data?.commits.find((c) => c.id === id);
-          if (commit && commit.commitHash && commit.project.githubUrl) {
+          if (commit?.commitHash && commit.project?.githubUrl) {
             // Open the commit in GitHub in a new tab
             window.open(
               `${commit.project.githubUrl}/commit/${commit.commitHash}`,
@@ -156,7 +186,7 @@ export function SearchBar() {
                       key={`project:${project.id}`}
                       value={`project:${project.id}`}
                       onSelect={handleSelect}
-                      className="flex items-center"
+                      className="flex items-center cursor-pointer"
                     >
                       <Folder className="mr-2 h-4 w-4 text-blue-600" />
                       <div className="flex flex-col">
@@ -186,7 +216,7 @@ export function SearchBar() {
                       key={`question:${question.id}`}
                       value={`question:${question.id}`}
                       onSelect={handleSelect}
-                      className="flex items-center"
+                      className="flex items-center cursor-pointer"
                     >
                       <MessageSquare className="mr-2 h-4 w-4 text-purple-600" />
                       <div className="flex flex-col">
@@ -200,7 +230,8 @@ export function SearchBar() {
                           )}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {question.project.name} ·{" "}
+                          {/* Add optional chaining */}
+                          {question.project?.name} ·{" "}
                           {formatDistanceToNow(question.createdAt, {
                             addSuffix: true,
                           })}
@@ -219,7 +250,7 @@ export function SearchBar() {
                       key={`meeting:${meeting.id}`}
                       value={`meeting:${meeting.id}`}
                       onSelect={handleSelect}
-                      className="flex items-center"
+                      className="flex items-center cursor-pointer"
                     >
                       <Presentation className="mr-2 h-4 w-4 text-green-600" />
                       <div className="flex flex-col">
@@ -233,7 +264,6 @@ export function SearchBar() {
                           )}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {meeting.project.name} ·{" "}
                           {formatDistanceToNow(meeting.createdAt, {
                             addSuffix: true,
                           })}
@@ -266,7 +296,7 @@ export function SearchBar() {
                       key={`commit:${commit.id}`}
                       value={`commit:${commit.id}`}
                       onSelect={handleSelect}
-                      className="flex items-center"
+                      className="flex items-center cursor-pointer"
                     >
                       <GitCommit className="mr-2 h-4 w-4 text-orange-600" />
                       <div className="flex flex-col">

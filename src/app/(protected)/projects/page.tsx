@@ -114,7 +114,7 @@ export default function ProjectsPage() {
           action={
             <Link href="/create">
               <Button>
-                <Plus className="mr-1.5 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 <span>Create Project</span>
               </Button>
             </Link>
