@@ -44,8 +44,8 @@ export const creditPackages: CreditPackage[] = [
     highlighted: true, // This is our highlighted package
   },
   {
-    id: "team",
-    name: "Team",
+    id: "max",
+    name: "Max",
     credits: 1500,
     price: 20, // Special price (regular would be $30)
     regularPrice: 30,
@@ -54,8 +54,8 @@ export const creditPackages: CreditPackage[] = [
     discount: "33% off",
     features: [
       "Multiple large projects",
-      "Team collaboration",
-      "Unlimited meeting analyses",
+      "Even more meeting analyses",
+      "Priority Processing Queue",
       "Priority support",
     ],
     highlighted: false,

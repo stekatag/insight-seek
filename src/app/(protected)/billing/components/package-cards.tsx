@@ -128,6 +128,7 @@ export function PackageCards({
 
           <CardFooter className="mt-auto flex-none pt-6">
             <Button
+              variant={pkg.highlighted ? "default" : "secondary"}
               className={cn(
                 "relative w-full",
                 pkg.highlighted && "bg-primary hover:bg-primary/90",
@@ -143,7 +144,7 @@ export function PackageCards({
               ) : (
                 <>
                   <CreditCard className="h-4 w-4" />
-                  <span>Purchase</span>
+                  <span>Buy Now</span>
                 </>
               )}
             </Button>

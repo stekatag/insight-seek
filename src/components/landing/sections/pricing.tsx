@@ -175,7 +175,7 @@ export const PricingSection = () => {
                   onClick={() => handleCheckout(pkg.credits, pkg.price)}
                 >
                   <CreditCard className=" h-4 w-4" />
-                  {pkg.id === "starter" ? "Buy Starter" : `Buy Credits`}
+                  <span>Buy Now</span>
                 </Button>
               </SignedIn>
               <SignedOut>
