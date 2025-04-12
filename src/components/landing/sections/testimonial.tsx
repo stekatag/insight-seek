@@ -30,7 +30,7 @@ const reviewList: ReviewProps[] = [
   {
     image: "https://i.pravatar.cc/150?img=14",
     name: "Alex Chen",
-    userName: "Senior Developer at TechCorp",
+    userName: "Web Developer",
     comment:
       "InsightSeek saves hours onboarding new projects. The repository analysis feature is a game changer for understanding complex architectures.",
     rating: 5,
@@ -46,7 +46,7 @@ const reviewList: ReviewProps[] = [
   {
     image: "https://i.pravatar.cc/150?img=13",
     name: "James Wilson",
-    userName: "Tech Lead at StartupX",
+    userName: "Tech Lead",
     comment:
       "InsightSeek truly understands context, unlike other tools. Commit summaries and repository Q&A deliver remarkable accuracy for code documentation.",
     rating: 5,
@@ -70,7 +70,7 @@ export const TestimonialSection = () => {
         </h2>
 
         <h2 className="text-3xl md:text-4xl text-center font-bold mb-4">
-          Hear What Our 1000+ Users Say
+          Hear What Our Users Say
         </h2>
       </div>
 
