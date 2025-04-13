@@ -11,7 +11,7 @@ import {
   startMeetingTranscription,
   type ProcessedSummary,
 } from "@/lib/assembly";
-import { generateEmbedding } from "@/lib/gemini";
+import { generateEmbedding, generateMeetingTitle } from "@/lib/gemini";
 
 // Define the request body schema
 const bodyParser = z.object({
@@ -149,13 +149,64 @@ export default async (request: Request) => {
       });
     }
 
-    // Update meeting status to completed
-    console.log("Updating meeting status to COMPLETED");
+    // Generate a title using Gemini based on summary context
+    let meetingName = "Untitled Meeting"; // Default
+    if (summaries && summaries.length > 0) {
+      // Create context from the first few summaries (e.g., max 3 summaries, 500 chars total)
+      const MAX_CONTEXT_SUMMARIES = 3;
+      const MAX_CONTEXT_LENGTH = 500;
+      let summaryContext = "";
+      for (
+        let i = 0;
+        i < Math.min(summaries.length, MAX_CONTEXT_SUMMARIES);
+        i++
+      ) {
+        const headline = summaries[i]?.headline?.trim();
+        const summaryText = summaries[i]?.summary?.trim();
+        let nextPart = "";
+        if (headline && summaryText) {
+          nextPart = `${headline}: ${summaryText}\n`;
+        } else if (headline) {
+          nextPart = `${headline}\n`;
+        } else if (summaryText) {
+          nextPart = `${summaryText}\n`;
+        }
+        if (summaryContext.length + nextPart.length <= MAX_CONTEXT_LENGTH) {
+          summaryContext += nextPart;
+        } else {
+          break; // Stop if adding next part exceeds length limit
+        }
+      }
+
+      if (summaryContext.trim().length > 0) {
+        try {
+          console.log("Generating meeting title with Gemini...");
+          meetingName = await generateMeetingTitle(summaryContext.trim());
+        } catch (genError) {
+          console.error(
+            "Failed to generate meeting title, using default:",
+            genError,
+          );
+          // meetingName remains "Untitled Meeting"
+        }
+      }
+    }
+
+    // Optional: Final truncation as a safety net
+    const MAX_NAME_LENGTH = 150;
+    if (meetingName.length > MAX_NAME_LENGTH) {
+      meetingName = meetingName.substring(0, MAX_NAME_LENGTH - 3) + "...";
+    }
+
+    // Update meeting status to completed with the generated name
+    console.log(
+      `Updating meeting status to COMPLETED with name: ${meetingName}`,
+    );
     await db.meeting.update({
       where: { id: meetingId },
       data: {
         status: "COMPLETED",
-        name: summaries[0]?.gist || "Untitled Meeting",
+        name: meetingName, // Use the potentially Gemini-generated name
       },
     });
 

@@ -84,6 +84,33 @@ export async function generateEmbedding(summary: string) {
   });
   const result = await model.embedContent(summary);
   const embedding = result.embedding;
-
   return embedding.values;
+}
+
+export async function generateMeetingTitle(
+  summaryContext: string,
+): Promise<string> {
+  if (!summaryContext || summaryContext.trim().length === 0) {
+    return "Untitled Meeting"; // Return default if no context provided
+  }
+
+  const prompt = `Based on the following meeting summary text, generate a concise and descriptive title (max 8 words):
+
+---
+${summaryContext}
+---
+
+Title:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const title = response.text().trim();
+
+    // Basic cleanup: remove potential quotes or leading/trailing weirdness
+    return title.replace(/^"|"$|^\*|\*$/g, "").trim() || "Untitled Meeting"; // Fallback if empty
+  } catch (error) {
+    console.error("Error generating meeting title with Gemini:", error);
+    return "Untitled Meeting"; // Fallback on error
+  }
 }

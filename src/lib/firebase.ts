@@ -51,15 +51,6 @@ export async function uploadFile(
           );
 
           if (setProgress) setProgress(progress);
-
-          switch (snapshot.state) {
-            case "paused":
-              console.log("Upload is paused");
-              break;
-            case "running":
-              console.log("Upload is running");
-              break;
-          }
         },
         (error) => {
           reject(error);

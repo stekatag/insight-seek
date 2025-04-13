@@ -199,7 +199,7 @@ function IssueCard({
                 className="w-full sm:w-auto"
               >
                 {isLoading ? (
-                  <Spinner size="small" />
+                  <Spinner size="small" className="text-white" />
                 ) : (
                   <MessageSquare className="h-4 w-4" />
                 )}
