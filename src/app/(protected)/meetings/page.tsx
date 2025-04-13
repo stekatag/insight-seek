@@ -74,24 +74,24 @@ export default function MeetingsPage() {
     <div className="space-y-6">
       <MeetingCard />
 
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h2 className="text-xl font-semibold">My Meetings</h2>
 
         {meetings && meetings.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              <div className="h-2 w-2 rounded-full bg-green-600"></div>
               <span>Analyzed: {completedCount}</span>
             </div>
             {processingCount > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-yellow-500"></div>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-yellow-600"></div>
                 <span>Processing: {processingCount}</span>
               </div>
             )}
             {errorCount > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-red-500"></div>
+                <div className="h-2 w-2 rounded-full bg-red-600"></div>
                 <span>Failed: {errorCount}</span>
               </div>
             )}
@@ -109,8 +109,8 @@ export default function MeetingsPage() {
       ) : meetings && meetings.length === 0 ? (
         <NoMeetingsEmptyState />
       ) : (
-        <div className="rounded-lg border bg-card">
-          <ul className="divide-y divide-border">
+        <div className="rounded-lg border dark:border-secondary bg-card">
+          <ul className="divide-y divide-border dark:divide-border-secondary">
             {meetings?.map((meeting) => {
               const isProcessing = meeting.status === "PROCESSING";
               const isError = meeting.status === "ERROR";
@@ -119,10 +119,10 @@ export default function MeetingsPage() {
               return (
                 <li
                   key={meeting.id}
-                  className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"
                 >
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start md:items-center flex-col md:flex-row gap-2 mb-3 md:mb-0">
                       <span className="text-base font-medium">
                         {meeting.name}
                       </span>
@@ -178,7 +178,7 @@ export default function MeetingsPage() {
                           </HoverCardContent>
                         </HoverCard>
                       ) : (
-                        <Badge className="bg-green-500 hover:bg-green-600">
+                        <Badge className="bg-green-600 hover:bg-green-600 dark:bg-green-700">
                           <Check className="mr-1 h-3 w-3" />
                           Analyzed
                         </Badge>
@@ -209,7 +209,7 @@ export default function MeetingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-4">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -221,17 +221,13 @@ export default function MeetingsPage() {
                                 disabled={true}
                                 className="w-24"
                               >
-                                <Eye className="mr-1.5 h-4 w-4" />
+                                <Eye className="h-4 w-4" />
                                 View
                               </Button>
                             ) : (
                               <Link href={`/meetings/${meeting.id}`}>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-24"
-                                >
-                                  <Eye className="mr-1.5 h-4 w-4" />
+                                <Button size="sm" className="w-24">
+                                  <Eye className="h-4 w-4" />
                                   View
                                 </Button>
                               </Link>
