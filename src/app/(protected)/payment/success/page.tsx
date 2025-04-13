@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle, CreditCard, Loader2, Plus } from "lucide-react";
+import { CheckCircle, CreditCard, Plus, Presentation } from "lucide-react";
 
 import { api } from "@/trpc/react";
 import { Button } from "@/components/ui/button";
@@ -24,21 +24,25 @@ function PaymentSuccessContent() {
   const { data: user, isLoading } = api.user.getMyCredits.useQuery();
 
   return (
-    <Card className="w-full">
+    <Card className="w-full dark:border-secondary">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-          <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+          <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-300" />
         </div>
         <CardTitle className="text-2xl">Payment Successful!</CardTitle>
         <CardDescription>
-          {credits
-            ? `You have purchased ${credits} credits`
-            : "Your payment has been processed successfully"}
+          {credits ? (
+            <>
+              You have purchased <strong>{`${credits} credits`}</strong>
+            </>
+          ) : (
+            "Your payment has been processed successfully"
+          )}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="text-center">
-        <div className="rounded-lg bg-muted p-6">
+        <div className="rounded-lg bg-muted dark:bg-background border dark:border-secondary p-4">
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">
             Your Current Balance
           </h3>
@@ -53,11 +57,17 @@ function PaymentSuccessContent() {
         </div>
       </CardContent>
 
-      <CardFooter className="flex flex-col gap-2">
+      <CardFooter className="flex flex-col gap-3">
         <Link href="/create" className="w-full">
           <Button className="w-full">
             <Plus className="h-4 w-4" />
             <span>New Project</span>
+          </Button>
+        </Link>
+        <Link href="/meetings" className="w-full">
+          <Button variant="outline" className="w-full">
+            <Presentation className="h-4 w-4" />
+            <span>Meetings</span>
           </Button>
         </Link>
         <Link href="/billing" className="w-full">

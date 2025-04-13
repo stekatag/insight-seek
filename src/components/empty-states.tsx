@@ -79,7 +79,7 @@ export function NoProjectEmptyState({
 export function NoQuestionsEmptyState() {
   return (
     <EmptyState
-      title="No questions yet"
+      title="No chats yet"
       description="Ask your first question about this project to get started."
       icon={<FileQuestion className="h-8 w-8 text-muted-foreground" />}
     />
@@ -101,8 +101,8 @@ export function NoMeetingsEmptyState() {
         </p>
 
         <div className="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">
-          <div className="rounded-md bg-muted p-3">
-            <p className="font-medium">How it works:</p>
+          <div className="rounded-md border dark:border-secondary bg-muted/50 dark:bg-card p-3">
+            <p className="font-medium text-foreground">How it works:</p>
             <ol className="ml-5 mt-2 list-decimal text-left">
               <li>Upload your meeting recording (audio file)</li>
               <li>Our AI transcribes and analyzes the content</li>

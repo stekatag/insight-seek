@@ -280,6 +280,17 @@ export default function MeetingCard() {
               <p className="mt-4 text-xs text-muted-foreground">
                 Supported formats: .mp3, .wav, .m4a (max 100 MB)
               </p>
+
+              {/* Add Language Note Alert */}
+              <Alert
+                variant="info"
+                className="w-fit mt-4 mb-0 flex items-center gap-2 p-3 text-sm relative [&>svg]:static [&>svg+div]:translate-y-0 [&>svg~*]:pl-0"
+              >
+                <Info className="h-4 w-4" />
+                <AlertTitle className="mb-0">
+                  Currently, only English language recordings are supported.
+                </AlertTitle>
+              </Alert>
             </>
           ) : (
             <div className="flex flex-col items-center py-8">
@@ -351,6 +362,17 @@ export default function MeetingCard() {
                 </div>
               </div>
             </div>
+
+            {/* Add Language Note Alert in Dialog */}
+            <Alert
+              variant="info"
+              className="mt-4 mb-0 flex items-center gap-2 p-3 text-sm relative [&>svg]:static [&>svg+div]:translate-y-0 [&>svg~*]:pl-0"
+            >
+              <Info className="h-4 w-4" />
+              <AlertTitle className="mb-0">
+                Currently, only English language recordings are supported.
+              </AlertTitle>
+            </Alert>
 
             {/* Credits Required */}
             <Alert>

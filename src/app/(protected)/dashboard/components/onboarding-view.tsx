@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Calendar,
-  FileText,
-  Folder,
-  Plus,
-  Presentation,
-} from "lucide-react";
+import { ArrowRight, FileText, Folder, Plus, Presentation } from "lucide-react";
 
 import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
@@ -17,17 +10,46 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import MeetingCard from "@/components/meeting-card";
 import { ProjectSelector } from "@/components/project-selector";
+
+// Define action items data
+const createActionItems = (hasProjects: boolean) => [
+  {
+    title: hasProjects ? "Create a new project" : "Create your first project",
+    description: "Connect your GitHub repository for insights",
+    icon: Folder,
+    href: "/create",
+  },
+  {
+    title: "Upload a meeting recording",
+    description: "Get AI-powered insights and summaries",
+    icon: Presentation,
+    href: "/meetings",
+  },
+  {
+    title: "Ask questions about your code",
+    description: "Get AI explanations about your codebase",
+    icon: FileText,
+    href: "/qa",
+  },
+];
 
 export default function OnboardingView() {
   const { projects, isLoading } = useProject();
-  const hasProjects = !isLoading && projects && projects.length > 0;
+  // Ensure hasProjects is always boolean using Boolean() constructor
+  const hasProjects: boolean = Boolean(
+    !isLoading && projects && projects.length > 0,
+  );
+
+  // Generate actions based on project status
+  const actionItems = createActionItems(hasProjects);
 
   return (
     <div className="space-y-6">
       {/* Welcome banner */}
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               {hasProjects
@@ -41,7 +63,7 @@ export default function OnboardingView() {
             </p>
           </div>
           <Link href="/create">
-            <Button className="w-full md:w-auto">
+            <Button className="w-full lg:w-auto">
               <Plus className="h-4 w-4" /> New Project
             </Button>
           </Link>
@@ -49,12 +71,12 @@ export default function OnboardingView() {
       </div>
 
       {/* Dashboard main content */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left column - Project selection and quick actions */}
-        <div className="space-y-6 md:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
           {hasProjects && <ProjectSelector />}
 
-          <Card>
+          <Card className="dark:border-secondary">
             <CardHeader>
               <CardTitle>
                 {hasProjects ? "Quick Actions" : "Get Started"}
@@ -65,99 +87,39 @@ export default function OnboardingView() {
                   : "Key actions to begin with Insight Seek"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <Folder className="h-6 w-6 text-primary" />
+            <CardContent className="grid gap-4 px-4 sm:px-6">
+              {actionItems.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex sm:items-center flex-col sm:flex-row gap-4 rounded-lg border dark:border-secondary p-4 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <item.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-1 min-w-0">
+                    <p className="font-medium leading-none">{item.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                  <Link href={item.href}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full bg-secondary"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
-                <div className="flex-1 space-y-1">
-                  <p className="font-medium leading-none">
-                    {hasProjects
-                      ? "Create a new project"
-                      : "Create your first project"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Connect your GitHub repository for insights
-                  </p>
-                </div>
-                <Link href="/create">
-                  <Button variant="ghost" size="sm" className="rounded-full">
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-
-              <div className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <Presentation className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <p className="font-medium leading-none">
-                    Upload a meeting recording
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Get AI-powered insights and summaries
-                  </p>
-                </div>
-                <Link href="/meetings">
-                  <Button variant="ghost" size="sm" className="rounded-full">
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-
-              <div className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <p className="font-medium leading-none">
-                    Ask questions about your code
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Get AI explanations about your codebase
-                  </p>
-                </div>
-                <Link href="/qa">
-                  <Button variant="ghost" size="sm" className="rounded-full">
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </div>
 
         {/* Right column - Custom Onboarding Meeting Card */}
         <div className="h-full">
-          <Card className="col-span-2 h-full border-dashed bg-muted/10 transition-all duration-200">
-            <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                <Presentation className="h-7 w-7 text-primary" />
-              </div>
-
-              <CardTitle className="mb-2 text-lg font-semibold">
-                Meeting Analysis
-              </CardTitle>
-
-              <CardDescription className="mb-6 max-w-xs">
-                Upload your meeting recordings to get AI-powered summaries and
-                insights.
-              </CardDescription>
-
-              <Link href="/meetings">
-                <Button size="lg">
-                  <Presentation className="h-4 w-4" aria-hidden="true" />
-                  Manage Meetings
-                </Button>
-              </Link>
-
-              <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>Unlock recording uploads and AI analysis</span>
-              </div>
-            </div>
-          </Card>
+          <MeetingCard />
         </div>
       </div>
     </div>
