@@ -90,7 +90,7 @@ export default function DeleteMeetingButton({
         className="w-24"
         onClick={() => setOpen(true)}
       >
-        <Trash className="mr-1.5 h-4 w-4" />
+        <Trash className="h-4 w-4" />
         Delete
       </Button>
 

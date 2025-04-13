@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Clock, Eye, FileQuestion } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import { api } from "@/trpc/react";
 import useRefetch from "@/hooks/use-refetch";
@@ -27,6 +28,7 @@ import DeleteMeetingButton from "./components/delete-meeting-button";
 
 export default function MeetingsPage() {
   const refetch = useRefetch();
+  const { resolvedTheme } = useTheme();
 
   // State to track whether we should be polling actively
   const [shouldPoll, setShouldPoll] = useState(false);
@@ -110,7 +112,7 @@ export default function MeetingsPage() {
         <NoMeetingsEmptyState />
       ) : (
         <div className="rounded-lg border dark:border-secondary bg-card">
-          <ul className="divide-y divide-border dark:divide-border-secondary">
+          <ul className="divide-y divide-border dark:divide-secondary">
             {meetings?.map((meeting) => {
               const isProcessing = meeting.status === "PROCESSING";
               const isError = meeting.status === "ERROR";
@@ -178,7 +180,7 @@ export default function MeetingsPage() {
                           </HoverCardContent>
                         </HoverCard>
                       ) : (
-                        <Badge className="bg-green-600 hover:bg-green-600 dark:bg-green-700">
+                        <Badge variant="success">
                           <Check className="mr-1 h-3 w-3" />
                           Analyzed
                         </Badge>
@@ -217,7 +219,11 @@ export default function MeetingsPage() {
                             {isProcessing || isError ? (
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant={
+                                  resolvedTheme === "dark"
+                                    ? "secondary"
+                                    : "outline"
+                                }
                                 disabled={true}
                                 className="w-24"
                               >
@@ -226,7 +232,15 @@ export default function MeetingsPage() {
                               </Button>
                             ) : (
                               <Link href={`/meetings/${meeting.id}`}>
-                                <Button size="sm" className="w-24">
+                                <Button
+                                  size="sm"
+                                  variant={
+                                    resolvedTheme === "dark"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                  className="w-24"
+                                >
                                   <Eye className="h-4 w-4" />
                                   View
                                 </Button>
