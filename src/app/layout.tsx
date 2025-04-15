@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://github.com/stekatag/insight-seek",
+    url: "https://insightseek.vip",
     title: "InsightSeek | AI-powered Code & Meeting Analysis",
     description:
       "Understand your GitHub repositories and team meetings with AI-powered insights. Ask questions about your code, analyze commits, and extract actionable insights from meetings.",
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "https://github.com/stekatag/insight-seek",
+    site: "https://insightseek.vip",
     title: "InsightSeek | AI-powered Code & Meeting Analysis",
     description:
       "Understand your GitHub repositories and team meetings with AI-powered insights. Ask questions about your code, analyze commits, and extract actionable insights from meetings.",

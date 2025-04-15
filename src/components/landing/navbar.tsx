@@ -276,7 +276,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
           >
             <Link
               aria-label="View on GitHub"
-              href="https://github.com/stekatag/insight-seekt"
+              href="https://github.com/stekatag/insight-seek"
               target="_blank"
             >
               <GitHubLogoIcon className="size-5" />
