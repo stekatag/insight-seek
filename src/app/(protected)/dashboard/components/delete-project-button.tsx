@@ -130,10 +130,9 @@ export default function DeleteProjectButton({
                 data, including:
               </p>
               <ul className="mt-2 list-inside list-disc space-y-1">
-                <li>All code embeddings and analysis</li>
-                <li>Uploaded meetings and their transcripts</li>
-                <li>Saved questions and answers</li>
-                <li>Commit history and summaries</li>
+                <li>All code analysis</li>
+                <li>Saved chats</li>
+                <li>Commit summaries</li>
               </ul>
             </div>
           </div>
