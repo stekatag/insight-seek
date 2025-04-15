@@ -2,38 +2,8 @@ import { icons } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface BenefitsProps {
-  icon: string;
-  title: string;
-  description: string;
-}
-
-const benefitList: BenefitsProps[] = [
-  {
-    icon: "CodeXml",
-    title: "Understand Complex Codebases",
-    description:
-      "Quickly get insights into unfamiliar repositories. Our AI analyzes code structure and provides clear explanations of functionality.",
-  },
-  {
-    icon: "GitGraph",
-    title: "Commit Summaries",
-    description:
-      "Stop wasting time reviewing lengthy commit histories. Get AI-generated summaries of changes and their impact on your project.",
-  },
-  {
-    icon: "Mic",
-    title: "Meeting Intelligence",
-    description:
-      "Transform meeting recordings into searchable insights. Extract action items, decisions, and key points without manual note-taking.",
-  },
-  {
-    icon: "MessagesSquare",
-    title: "Interactive Q&A",
-    description:
-      "Ask specific questions about your code or meetings and receive instant, contextually relevant answers from our specialized AI.",
-  },
-];
+// Import the benefits data and type
+import { benefitList } from "../data/benefits-data";
 
 export const BenefitsSection = () => {
   return (
@@ -53,6 +23,7 @@ export const BenefitsSection = () => {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4 w-full">
+          {/* Use imported benefitList */}
           {benefitList.map(({ icon, title, description }, index) => {
             const LucideIcon = icons[icon as keyof typeof icons];
 

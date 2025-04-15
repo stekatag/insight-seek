@@ -39,20 +39,6 @@ export const CTASection = () => {
                 <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="gap-2 text-base"
-            >
-              <Link
-                href="https://github.com/stekatag/insight-seek"
-                target="_blank"
-              >
-                <GitHubLogoIcon className="h-5 w-5" />
-                View on GitHub
-              </Link>
-            </Button>
           </div>
         </div>
       </div>

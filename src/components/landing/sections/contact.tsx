@@ -110,8 +110,8 @@ export const ContactSection = () => {
           </p>
 
           <div className="flex flex-col gap-4">
-            <div>
-              <div className="flex gap-2 mb-1">
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
                 <Mail className="text-primary" />
                 <div className="font-bold">Email Us</div>
               </div>
@@ -120,7 +120,7 @@ export const ContactSection = () => {
               </div>
             </div>
 
-            <div>
+            <div className="flex flex-col gap-2">
               <div className="flex gap-2">
                 <Clock className="text-primary" />
                 <div className="font-bold">Support Hours</div>
