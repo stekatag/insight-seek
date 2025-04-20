@@ -18,6 +18,8 @@ export default function ApplicationLogo({
       clipRule="evenodd"
       viewBox="0 0 32 32"
       id="lamp"
+      width="100%"
+      height="100%"
       className={className}
     >
       <path
