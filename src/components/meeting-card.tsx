@@ -286,7 +286,7 @@ export default function MeetingCard() {
                 variant="info"
                 className="w-fit mt-4 mb-0 flex items-center gap-2 p-3 text-sm relative [&>svg]:static [&>svg+div]:translate-y-0 [&>svg~*]:pl-0"
               >
-                <Info className="h-4 w-4" />
+                <Info className="h-0 w-0 sm:h-4 sm:w-4" />
                 <AlertTitle className="mb-0">
                   Currently, only English language recordings are supported.
                 </AlertTitle>
@@ -368,7 +368,7 @@ export default function MeetingCard() {
               variant="info"
               className="mt-4 mb-0 flex items-center gap-2 p-3 text-sm relative [&>svg]:static [&>svg+div]:translate-y-0 [&>svg~*]:pl-0"
             >
-              <Info className="h-4 w-4" />
+              <Info className="h-0 w-0 sm:h-4 sm:w-4" />
               <AlertTitle className="mb-0">
                 Currently, only English language recordings are supported.
               </AlertTitle>

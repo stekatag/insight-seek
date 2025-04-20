@@ -1,10 +1,21 @@
 import Link from "next/link";
+import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { ArrowDown, ArrowRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import { HeroImage } from "./hero-image";
+
+// Define the reusable button component structure
+const ActionButton = ({ href, text }: { href: string; text: string }) => (
+  <Button asChild className="w-5/6 md:w-1/4 font-bold group/arrow">
+    <Link href={href}>
+      <span>{text}</span>
+      <ArrowRight className="size-5 group-hover/arrow:translate-x-1 transition-transform" />
+    </Link>
+  </Button>
+);
 
 export const HeroSection = () => {
   return (
@@ -33,12 +44,12 @@ export const HeroSection = () => {
           </p>
 
           <div className="space-y-4 md:space-y-0 md:space-x-4">
-            <Button asChild className="w-5/6 md:w-1/4 font-bold group/arrow">
-              <Link href="/sign-up">
-                <span>Start Analyzing</span>
-                <ArrowRight className="size-5 group-hover/arrow:translate-x-1 transition-transform" />
-              </Link>
-            </Button>
+            <SignedOut>
+              <ActionButton href="/sign-up" text="Start Analyzing" />
+            </SignedOut>
+            <SignedIn>
+              <ActionButton href="/dashboard" text="Dashboard" />
+            </SignedIn>
 
             <Button
               asChild
