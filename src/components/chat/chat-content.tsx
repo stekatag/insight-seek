@@ -1,7 +1,9 @@
 import { memo, useEffect, useRef } from "react";
-import { Bot, User } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { Bot } from "lucide-react";
 
 import { Chat, ChatQuestion } from "@/types/chat";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CodeReferences from "@/components/code-references";
@@ -15,10 +17,12 @@ const ChatQuestionItem = memo(
     qa,
     isLoadingReferences = false,
     isFirstQuestion = false,
+    user,
   }: {
     qa: ChatQuestion;
     isLoadingReferences?: boolean;
     isFirstQuestion?: boolean;
+    user: ReturnType<typeof useUser>["user"];
   }) => {
     const isLoading =
       qa.answer === "Getting answer..." || qa.answerLoading === true;
@@ -86,9 +90,14 @@ const ChatQuestionItem = memo(
           <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
             <p>{qa.question}</p>
           </div>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
-            <User className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <Avatar className="h-8 w-8 shrink-0 border">
+            <AvatarImage src={user?.imageUrl} alt={user?.firstName ?? "User"} />
+            <AvatarFallback>
+              {user?.firstName?.charAt(0) ||
+                user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ||
+                "U"}
+            </AvatarFallback>
+          </Avatar>
         </div>
 
         {/* AI Answer */}
@@ -155,6 +164,7 @@ function ChatContent({
   const contentRef = useRef<HTMLDivElement>(null);
   const hasScrolledRef = useRef(false);
   const { updateChat } = useChatContext();
+  const { user, isLoaded } = useUser();
 
   // Listen for force update events
   useEffect(() => {
@@ -231,7 +241,7 @@ function ChatContent({
   }, [chat?.id, chat?.questions?.length, streamQuestion, messagesEndRef]);
 
   // Early exit if no chat data
-  if (!chat || !Array.isArray(chat.questions)) {
+  if (!chat || !Array.isArray(chat.questions) || !isLoaded) {
     return null;
   }
 
@@ -251,6 +261,7 @@ function ChatContent({
             qa={qa}
             isLoadingReferences={qa.referencesLoading || false}
             isFirstQuestion={index === 0}
+            user={user}
           />
         ))}
 
@@ -262,9 +273,17 @@ function ChatContent({
               <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
                 <p>{streamQuestion}</p>
               </div>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
-                <User className="h-4 w-4 text-primary-foreground" />
-              </div>
+              <Avatar className="h-8 w-8 shrink-0 border">
+                <AvatarImage
+                  src={user?.imageUrl}
+                  alt={user?.firstName ?? "User"}
+                />
+                <AvatarFallback>
+                  {user?.firstName?.charAt(0) ||
+                    user?.emailAddresses?.[0]?.emailAddress?.charAt(0) ||
+                    "U"}
+                </AvatarFallback>
+              </Avatar>
             </div>
 
             {/* AI Answer Loading */}

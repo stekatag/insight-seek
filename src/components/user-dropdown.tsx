@@ -181,7 +181,7 @@ export default function UserDropdown({
 
         {/* Credit balance and Buy Credits button */}
         <div className="px-2 pt-2">
-          <div className="rounded-md bg-muted/40 p-2">
+          <div className="rounded-md bg-sidebar dark:bg-muted/40 p-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium">Credit Balance</span>
               <span className="text-sm font-semibold">
