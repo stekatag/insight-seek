@@ -166,6 +166,20 @@ export default function CommitLog() {
     // The localStorage flag is handled above.
   }, [projectId, isLoading, commits, triggerRefresh, isNewProject]);
 
+  // Effect to clear localStorage flag once initial processing seems complete
+  useEffect(() => {
+    if (isNewProject && commits.length > 0 && !hasPendingSummaries) {
+      // If it was a new project, we have commits, and none are pending
+      if (localStorage.getItem("lastCreatedProject") === projectId) {
+        console.log(
+          "Initial processing appears complete, clearing localStorage flag and refetching.",
+        );
+        localStorage.removeItem("lastCreatedProject");
+        refetch(); // Manually refetch commits here
+      }
+    }
+  }, [isNewProject, commits.length, hasPendingSummaries, projectId, refetch]); // Add refetch to dependency array
+
   // Check for pending summaries and update polling state
   useEffect(() => {
     const pending = commits?.some(

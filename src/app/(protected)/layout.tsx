@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/sidebar/app-sidebar";
+import SidebarSkeleton from "@/components/sidebar/sidebar-skeleton";
 import TopBar from "@/components/top-bar";
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 export default function SidebarLayout({ children }: Props) {
   return (
     <SidebarProvider>
-      <Suspense fallback={<div>Loading Sidebar...</div>}>
+      <Suspense fallback={<SidebarSkeleton />}>
         <AppSidebar />
       </Suspense>
       <main className="flex w-full flex-col">
