@@ -1,5 +1,4 @@
 import { db } from "@/server/db";
-import { ValidationStatus } from "@prisma/client";
 import { logger, schemaTask } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 
@@ -12,28 +11,39 @@ const validationPayloadSchema = z.object({
   userId: z.string(),
   githubUrl: z.string().url(),
   branch: z.string(),
-  validationResultId: z.string(), // ID of the ValidationResult record to update
+  validationResultId: z.string(), // Keep DB ID for logging if needed
 });
 
-// Define the Trigger.dev Task
+// Define the output schema for the task
+const validationOutputSchema = z.object({
+  status: z.enum(["success", "error"]),
+  fileCount: z.number().optional(),
+  userCredits: z.number().optional(),
+  error: z.string().optional(),
+});
+
+// Define the Trigger.dev Task using schemaTask
 export const validateRepositoryTask = schemaTask({
-  id: "validate-repository", // Unique ID for this task
-  // name: "Validate GitHub Repository", // Removed name property
-  // Use the Zod schema for payload validation
+  id: "validate-repository",
   schema: validationPayloadSchema,
-  // Define the run function that contains the task logic
-  run: async (payload, { ctx }) => {
+  // Output schema is inferred from the run function's return type
+  run: async (
+    payload,
+    { ctx },
+  ): Promise<z.infer<typeof validationOutputSchema>> => {
     const { userId, githubUrl, branch, validationResultId } = payload;
 
     logger.info(
-      `🚀 Starting repository validation for ID: ${validationResultId}`,
+      `🚀 Starting repository validation (task run ${ctx.run.id}) for DB record: ${validationResultId}`,
       payload,
     );
+
+    let userCredits: number | undefined;
 
     try {
       // --- Core Validation Logic ---
 
-      // 1. Get GitHub Token (No need for io.runTask in v3 for simple async calls)
+      // 1. Get GitHub Token
       const token = await getInstallationToken(userId);
       const githubToken = token || undefined;
       logger.info("GitHub token obtained.");
@@ -45,34 +55,27 @@ export const validateRepositoryTask = schemaTask({
       });
 
       if (!user) {
-        // Update status to ERROR before throwing
-        await db.validationResult.update({
-          where: { id: validationResultId },
-          data: {
-            status: ValidationStatus.ERROR,
-            error: `User not found: ${userId}`,
-          },
-        });
-        throw new Error(`User not found: ${userId}`);
+        // Return error output directly, no DB update needed here
+        logger.error(`User not found: ${userId}`);
+        return {
+          status: "error",
+          error: `User not found: ${userId}`,
+        };
       }
-      logger.info(`User credits retrieved: ${user.credits}`);
+      userCredits = user.credits; // Store for later return
+      logger.info(`User credits retrieved: ${userCredits}`);
 
       // 3. Validate the repository structure and access
       const validationData = await validateGitHubRepo(githubUrl, githubToken);
 
       if (!validationData.isValid) {
+        const errorMsg =
+          validationData.error || "Invalid repository configuration";
         logger.error("Repository structure validation failed.", {
-          error: validationData.error,
+          error: errorMsg,
         });
-        await db.validationResult.update({
-          where: { id: validationResultId },
-          data: {
-            status: ValidationStatus.ERROR,
-            error: validationData.error || "Invalid repository configuration",
-          },
-        });
-        // Return early, no need to throw, let the task complete as 'failed' via status update
-        return { status: "error", reason: "Invalid repository structure" };
+        // Return error output directly
+        return { status: "error", error: errorMsg };
       }
       logger.info("Repository structure validated successfully.");
 
@@ -80,22 +83,19 @@ export const validateRepositoryTask = schemaTask({
       const fileCount = await checkCredits(githubUrl, branch, githubToken);
       logger.info(`File count check completed: ${fileCount}`);
 
-      // 5. Update validation result with success data
-      const finalResult = await db.validationResult.update({
-        where: { id: validationResultId },
-        data: {
-          status: ValidationStatus.COMPLETED,
-          fileCount,
-          userCredits: user.credits,
-          hasEnoughCredits: user.credits >= fileCount,
-          error: null, // Clear any previous error
-        },
-      });
+      // 5. NO DB UPDATE HERE
 
       logger.info("✅ Repository validation task completed successfully.", {
-        finalResult,
+        fileCount,
+        userCredits,
       });
-      return { status: "success", fileCount, userCredits: user.credits };
+
+      // 6. Return success output
+      return {
+        status: "success",
+        fileCount,
+        userCredits,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -103,24 +103,16 @@ export const validateRepositoryTask = schemaTask({
         error: errorMessage,
       });
 
-      // Attempt to update validation result with error status
-      try {
-        await db.validationResult.update({
-          where: { id: validationResultId },
-          data: {
-            status: ValidationStatus.ERROR,
-            error: errorMessage,
-          },
-        });
-      } catch (dbError) {
-        logger.error(
-          "Failed to update validation status to ERROR in DB after catching error.",
-          { dbError },
-        );
-      }
+      // NO DB UPDATE HERE
 
-      // Re-throwing the error ensures Trigger.dev marks the run as FAILED
-      throw error;
+      // Return error output
+      return {
+        status: "error",
+        error: errorMessage,
+        // Include userCredits if we fetched them before the error
+        userCredits: userCredits,
+      };
+      // Do not re-throw; let the task complete successfully but return error status
     }
   },
 });

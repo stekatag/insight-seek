@@ -305,25 +305,30 @@ export default function CommitLog() {
       <div className="rounded-lg border p-8 text-center">
         <h2 className="mb-2 text-xl font-semibold">No Commits Found</h2>
         <p className="mb-6 text-muted-foreground">
-          We couldn't find any commits for this project. Try refreshing or check
-          your repository URL.
+          We couldn't find any commits for this project yet.
+          {isNewProject
+            ? " Initial analysis is likely in progress. The list will update automatically."
+            : " Try refreshing or check your repository URL."}
         </p>
-        <Button
-          onClick={handleRefreshCommits}
-          disabled={refreshInProgressRef.current || isLoading}
-        >
-          {refreshInProgressRef.current ? (
-            <>
-              <Spinner size="small" className="text-white" />
-              Refreshing...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Refresh Commits
-            </>
-          )}
-        </Button>
+        {/* Only show refresh button if it's NOT a new project */}
+        {!isNewProject && (
+          <Button
+            onClick={handleRefreshCommits}
+            disabled={refreshInProgressRef.current || isLoading}
+          >
+            {refreshInProgressRef.current ? (
+              <>
+                <Spinner size="small" className="text-white" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Refresh Commits
+              </>
+            )}
+          </Button>
+        )}
       </div>
     );
   }

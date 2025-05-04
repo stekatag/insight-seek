@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ValidationStatus } from "@prisma/client";
+import type { validateRepositoryTask } from "@/trigger/validateRepository";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
-import axios from "axios";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,7 +17,6 @@ import { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 
 import { api } from "@/trpc/react";
-import { isAbortOrTimeoutError } from "@/lib/error-utils";
 import { GitHubRepository } from "@/lib/github-api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -41,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import GitHubBranchSelector from "@/components/github-branch-selector";
 import GitHubRepoSelector from "@/components/github-repo-selector";
+import { generateTriggerRunToken } from "@/app/actions/triggerActions";
 import { requestRepositoryValidationAction } from "@/app/actions/validationActions";
 
 import { CreateProjectFormData } from "../page";
@@ -50,9 +50,6 @@ interface ProjectCreationCardProps {
   userId?: string;
   onSuccess: (projectId: string) => void;
 }
-
-// Timeout constants in milliseconds
-const VALIDATION_TIMEOUT_MS = 240000; // 4 minutes
 
 export default function ProjectCreationCard({
   form,
@@ -82,11 +79,21 @@ export default function ProjectCreationCard({
     branches: [],
   });
 
-  // Validation states
-  const [validationState, setValidationState] = useState<
-    "idle" | "validating" | "validated" | "error"
-  >("idle");
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // Add state for Trigger.dev run ID
+  const [validationRunId, setValidationRunId] = useState<string | null>(null);
+  const [validationAccessToken, setValidationAccessToken] = useState<
+    string | null
+  >(null);
+  const [isCurrentValidationComplete, setIsCurrentValidationComplete] =
+    useState(false);
+
+  // Use the real-time hook
+  const { run, error: runError } = useRealtimeRun<
+    typeof validateRepositoryTask
+  >(validationRunId ?? undefined, {
+    accessToken: validationAccessToken ?? undefined,
+    enabled: !!validationRunId && !!validationAccessToken,
+  });
 
   // Project creation states
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -99,55 +106,7 @@ export default function ProjectCreationCard({
   const { data: githubData } = api.user.getGithubStatus.useQuery();
   const hasGithubConnection = !!githubData?.connected;
 
-  // Validation status polling
-  const [validationPolling, setValidationPolling] = useState(false);
-
-  // Track if we're in a validation initializing state (just requested validation but record not yet created)
-  const [validationInitializing, setValidationInitializing] = useState(false);
-
-  // Track server action pending state
-  const [isRequestingValidation, setIsRequestingValidation] = useState(false);
-
-  // ID used for polling - set when server action returns success
-  const [pollingValidationId, setPollingValidationId] = useState<string | null>(
-    null,
-  );
-
-  // Query for validation status polling (watches form values AND uses pollingValidationId)
-  const watchedRepoUrl = form.watch("repoUrl");
-  const watchedBranch = form.watch("branch");
-  const { data: validationResult, error: validationQueryError } =
-    api.project.getValidationStatus.useQuery(
-      {
-        // These are needed to find the correct record in the DB via the unique constraint
-        githubUrl: watchedRepoUrl,
-        branch: watchedBranch,
-      },
-      {
-        // Enable polling only if we have an ID from the action AND polling is active
-        enabled:
-          validationPolling &&
-          !!pollingValidationId &&
-          !!watchedRepoUrl &&
-          !!watchedBranch,
-        refetchInterval: 3000,
-        retry: (failureCount, error: any) => {
-          // Don't retry endlessly if the record isn't found initially (might be race condition)
-          if (error?.data?.code === "NOT_FOUND") {
-            return failureCount < 3;
-          }
-          if (
-            error?.data?.code === "INTERNAL_SERVER_ERROR" ||
-            failureCount >= 5
-          )
-            return false;
-          return true;
-        },
-        refetchOnWindowFocus: false,
-      },
-    );
-
-  // Project creation status polling
+  // Use the existing project creation status query
   const { data: projectCreationStatus } =
     api.project.getProjectCreationStatus.useQuery(
       { projectCreationId: projectCreationId || "" },
@@ -159,80 +118,7 @@ export default function ProjectCreationCard({
       },
     );
 
-  // Effect to handle polling results for validation
-  useEffect(() => {
-    if (!validationPolling || !validationResult || !pollingValidationId) return;
-
-    // Ensure we are polling for the specific validation triggered
-    if (validationResult.id !== pollingValidationId) {
-      console.log("Stale validation result ignored (ID mismatch).");
-      return;
-    }
-
-    switch (validationResult.status) {
-      case ValidationStatus.PROCESSING:
-        setValidationState("validating");
-        setValidationError(null);
-        break;
-      case ValidationStatus.COMPLETED:
-        setValidationState("validated");
-        setValidationError(null);
-        setValidationPolling(false); // Stop polling
-        if (!validationResult.hasEnoughCredits) {
-          toast.warning("You need more credits for this project.");
-        }
-        break;
-      case ValidationStatus.ERROR:
-        setValidationState("error");
-        setValidationError(
-          validationResult.error || "Repository validation failed.",
-        );
-        toast.error(validationResult.error || "Repository validation failed.");
-        setValidationPolling(false); // Stop polling
-        break;
-    }
-  }, [validationResult, validationPolling, pollingValidationId]);
-
-  // Effect to handle query errors during validation polling
-  useEffect(() => {
-    if (validationQueryError && validationPolling) {
-      console.error("Error polling validation status:", validationQueryError);
-      // Don't set error state if it was just a NOT_FOUND during init/race condition
-      if (validationQueryError.data?.code !== "NOT_FOUND") {
-        setValidationState("error");
-        setValidationError(
-          "Failed to get validation status. Please try again.",
-        );
-        toast.error("Failed to get validation status.");
-        setValidationPolling(false);
-      }
-    }
-  }, [validationQueryError, validationPolling]);
-
-  // Client-side timeout for validation
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
-    // Consider validating if the action is pending OR polling is active
-    const isActiveValidating = isRequestingValidation || validationPolling;
-
-    if (isActiveValidating) {
-      timeoutId = setTimeout(() => {
-        if (isRequestingValidation || validationPolling) {
-          console.error("Client-side validation timeout reached.");
-          setValidationState("error");
-          setValidationError("Repository check timed out. Please try again.");
-          toast.error("Repository check timed out. Please try again.");
-          setValidationPolling(false);
-          setIsRequestingValidation(false);
-        }
-      }, VALIDATION_TIMEOUT_MS);
-    }
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [isRequestingValidation, validationPolling]);
-
-  // Effect to handle project creation status changes
+  // Use the existing project creation status handling logic
   useEffect(() => {
     if (!projectCreationStatus) return;
 
@@ -241,123 +127,61 @@ export default function ProjectCreationCard({
       projectCreationStatus.projectId
     ) {
       const projectId = projectCreationStatus.projectId;
-      console.log(`Project ${projectId} created successfully.`);
-
-      // Stop polling once we have the project ID
       setProjectCreationPolling(false);
       setIsCreatingProject(false);
-
-      // Set flags for the commit log component to pick up
       localStorage.setItem("lastCreatedProject", projectId);
-
       toast.success("Project created successfully! Redirecting...");
-      onSuccess(projectId); // Navigate
+      onSuccess(projectId);
     } else if (projectCreationStatus.status === "ERROR") {
-      // Stop polling on error
       setProjectCreationPolling(false);
       setIsCreatingProject(false);
-
-      // Show error message
       toast.error(projectCreationStatus.error || "Failed to create project");
     } else if (
       ["INITIALIZING", "CREATING_PROJECT", "INDEXING"].includes(
         projectCreationStatus.status,
       )
     ) {
-      // Ensure polling is active for in-progress projects
       if (!projectCreationPolling) {
         setProjectCreationPolling(true);
       }
     }
   }, [projectCreationStatus, onSuccess, projectCreationPolling]);
 
+  // Effect to update isCurrentValidationComplete based on run status
+  useEffect(() => {
+    if (
+      run?.status === "COMPLETED" &&
+      run?.output?.status === "success" &&
+      !!validationRunId &&
+      run?.id === validationRunId
+    ) {
+      setIsCurrentValidationComplete(true);
+    }
+  }, [run?.status, run?.output?.status, validationRunId, run?.id]);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
-      // Stop all polling processes when component unmounts
-      setValidationPolling(false);
-      setValidationInitializing(false);
       setProjectCreationPolling(false);
-
-      // Clean up any pending localStorage flags to prevent state leakage
       localStorage.removeItem("projectCreationInProgress");
+      // Reset validation run ID and token on unmount
+      setValidationRunId(null);
+      setValidationAccessToken(null);
     };
   }, []);
 
-  // Background validation function
-  const validateRepositoryBackground = async (
-    githubUrl: string,
-    branch: string,
-  ) => {
-    if (!userId) return;
-
-    try {
-      // Set initializing state to prevent premature queries
-      setValidationInitializing(true);
-
-      // Start the background validation
-      await axios.post("/api/validate-repository", {
-        githubUrl,
-        branch,
-        userId,
-      });
-
-      // Give the database a moment to create the record before we start polling
-      setTimeout(() => {
-        setValidationInitializing(false);
-        setValidationPolling(true);
-      }, 1000);
-    } catch (error) {
-      console.error("Error starting repository validation:", error);
-      setValidationState("error");
-      setValidationError("Failed to start repository validation");
-      toast.error("Failed to start repository validation");
-      setValidationInitializing(false);
-    }
-  };
-
-  // Credit validation mutation - keep for compatibility, but we'll use the background function
-  const checkCredits = api.project.checkCredits.useMutation({
-    onSuccess: (data) => {
-      setValidationState("validated");
-      if (data.fileCount > data.userCredits) {
-        toast.warning("You need more credits to create this project.");
-      }
-    },
-    onError: (error) => {
-      // If we got a "Stream closed" error, switch to background validation
-      if (isAbortOrTimeoutError(error)) {
-        const data = form.getValues();
-        validateRepositoryBackground(data.repoUrl, data.branch);
-        return;
-      }
-
-      setValidationState("error");
-      setValidationError(error.message || "Invalid repository");
-      toast.error(error.message || "Failed to validate repository");
-    },
-  });
-
-  // Clear validation when repo or branch changes
+  // Reset validation function
   const resetValidation = useCallback(() => {
-    // Stop any active polling
-    setValidationPolling(false);
-    // Reset all validation states
-    setValidationInitializing(false);
-    setValidationState("idle");
-    setValidationError(null);
-    setPollingValidationId(null); // Clear the ID used for polling
-    checkCredits.reset();
-  }, [checkCredits]);
+    // Reset run ID and token
+    setValidationRunId(null);
+    setValidationAccessToken(null);
+    setIsCurrentValidationComplete(false);
+  }, []);
 
   // Start project creation mutation
   const startProjectCreation = api.project.startProjectCreation.useMutation({
     onSuccess: async (data) => {
       if (data.success && data.projectCreationId) {
-        console.log(
-          "tRPC startProjectCreation succeeded, proceeding to poll.",
-          data,
-        );
         setProjectCreationId(data.projectCreationId);
         setProjectCreationPolling(true);
       } else {
@@ -379,7 +203,7 @@ export default function ProjectCreationCard({
   // Use a ref to track previous repo to prevent unnecessary state updates
   const prevRepoRef = useRef<string>("");
 
-  // Handle branch loading state changes - use memoized callback
+  // Handle branch loading state changes
   const handleBranchLoadingChange = useCallback((isLoading: boolean) => {
     setBranchState((prev) => ({
       ...prev,
@@ -387,12 +211,10 @@ export default function ProjectCreationCard({
     }));
   }, []);
 
-  // Handle branches loaded event - use memoized callback
+  // Handle branches loaded event
   const handleBranchesLoaded = useCallback((branches: any[]) => {
     setBranchState((prev) => {
-      // Only update if not already loaded to prevent cycles
       if (prev.isLoaded) return prev;
-
       return {
         isLoading: false,
         isLoaded: true,
@@ -404,31 +226,19 @@ export default function ProjectCreationCard({
   // Handle repository selection with safeguards against redundant updates
   const handleSelectRepo = useCallback(
     (repo: GitHubRepository) => {
-      // Skip update if selecting the same repo
       if (prevRepoRef.current === repo.fullName) return;
-
-      // We're changing repos, so reset all validation
       resetValidation();
-
       prevRepoRef.current = repo.fullName;
       setSelectedRepo(repo);
-
-      // Update form values
       form.setValue("repoUrl", repo.htmlUrl);
       form.setValue("projectName", repo.name);
       form.trigger(["repoUrl", "projectName"]);
-
-      // Clear the branch selection when changing repositories
       form.setValue("branch", "");
-
-      // Reset branch state when changing repositories - do this once
       setBranchState({
         isLoading: true,
         isLoaded: false,
         branches: [],
       });
-
-      // Parse owner and repo name from full name
       const parts = repo.fullName.split("/");
       if (parts.length === 2) {
         setRepoOwner(parts[0] || "");
@@ -445,65 +255,46 @@ export default function ProjectCreationCard({
     resetValidation();
   };
 
-  // Handle form submission
-  const onSubmit = async (data: CreateProjectFormData) => {
-    // Check if validation is complete and successful
-    if (validationState === "validated" && validationResult?.hasEnoughCredits) {
-      // Proceed with project creation (using the existing mutation for now)
-      setIsCreatingProject(true);
-      startProjectCreation.mutate({
-        githubUrl: data.repoUrl,
-        name: data.projectName,
-        branch: data.branch,
-      });
-      return;
-    }
+  // --- Derive validation state from useRealtimeRun ---
+  // Explicit terminal states we care about
+  const terminalStatuses = [
+    "COMPLETED",
+    "FAILED",
+    "CRASHED",
+    "CANCELED",
+    "TIMED_OUT",
+    "INTERRUPTED",
+    "SYSTEM_FAILURE",
+  ];
 
-    // If not validated or not enough credits, trigger validation via Server Action
-    console.log("Triggering repository validation via Server Action...");
-    setValidationState("validating");
-    setValidationError(null);
-    setPollingValidationId(null); // Clear previous polling ID
-    setValidationPolling(false); // Ensure polling stops
-    setIsRequestingValidation(true); // Set pending state for server action
+  const validationStatus = run?.status;
+  const validationOutput = run?.output;
+  const validationError = runError?.message || validationOutput?.error;
+  const fileCount = validationOutput?.fileCount;
+  const userCredits = validationOutput?.userCredits;
 
-    try {
-      const result = await requestRepositoryValidationAction({
-        githubUrl: data.repoUrl,
-        branch: data.branch,
-      });
+  // Determine if validation has failed (error from hook OR error status from output)
+  const hasValidationError = !!(
+    runError ||
+    (run?.status === "COMPLETED" && run.output?.status === "error")
+  );
 
-      if (result.success && result.validationId) {
-        console.log(
-          "Server action successful, validation ID:",
-          result.validationId,
-        );
-        setPollingValidationId(result.validationId); // Set the ID for polling
-        setValidationPolling(true); // Start polling
-      } else {
-        console.error("Server action failed:", result.error);
-        setValidationState("error");
-        setValidationError(result.error || "Failed to start validation check.");
-        toast.error(result.error || "Failed to start validation check.");
-        setValidationPolling(false); // Ensure polling doesn't start on error
-      }
-    } catch (error) {
-      console.error("Error calling server action:", error);
-      setValidationState("error");
-      setValidationError(
-        "An unexpected error occurred while requesting validation.",
-      );
-      toast.error("An unexpected error occurred.");
-      setValidationPolling(false);
-    } finally {
-      setIsRequestingValidation(false); // Clear pending state
-    }
-  };
+  // Determine if validation is actively running
+  const isValidating = !!(
+    validationRunId &&
+    run?.status &&
+    !terminalStatuses.includes(run.status) &&
+    !hasValidationError &&
+    !isCurrentValidationComplete
+  );
 
-  // Check if user has enough credits - use validation result if available
-  const hasEnoughCredits = validationResult
-    ? (validationResult.hasEnoughCredits ?? true)
-    : true;
+  // Check if user has enough credits based on run output
+  const hasEnoughCredits =
+    isCurrentValidationComplete &&
+    typeof fileCount === "number" &&
+    typeof userCredits === "number"
+      ? userCredits >= fileCount
+      : true;
 
   // Determine if validation should be allowed
   const canValidate =
@@ -520,9 +311,6 @@ export default function ProjectCreationCard({
     form.getValues("repoUrl") !== "" &&
     !branchState.isLoading;
 
-  // Handle loading/polling for validation with spinner or indicator
-  const isValidating = isRequestingValidation || validationPolling;
-
   // Get the correct button text based on validation state
   const getButtonText = () => {
     if (isCreatingProject) {
@@ -533,8 +321,12 @@ export default function ProjectCreationCard({
       return "Checking Repository";
     }
 
-    if (validationState === "validated") {
+    if (isCurrentValidationComplete && hasEnoughCredits) {
       return "Create Project";
+    }
+
+    if (isCurrentValidationComplete && !hasEnoughCredits) {
+      return "Insufficient Credits";
     }
 
     return "Check Repository";
@@ -543,39 +335,74 @@ export default function ProjectCreationCard({
   // Get the appropriate icon for the button
   const getButtonIcon = () => {
     if (isValidating || isCreatingProject) {
-      // No icon needed when validating or creating (we show a spinner)
       return null;
     }
 
-    if (validationState === "validated") {
-      // Show plus icon for create project
+    if (isCurrentValidationComplete && hasEnoughCredits) {
       return <Plus className="h-4 w-4" />;
     }
 
-    // Show search/check icon for checking repository
     return <Info className="h-4 w-4" />;
   };
 
-  // Set up error handling for validation timeouts
-  useEffect(() => {
-    if (!isValidating) return;
+  // Handle form submission
+  const onSubmit = async (data: CreateProjectFormData) => {
+    // If current validation is complete with enough credits, proceed to creation
+    if (isCurrentValidationComplete && hasEnoughCredits) {
+      setIsCreatingProject(true);
+      startProjectCreation.mutate({
+        githubUrl: data.repoUrl,
+        name: data.projectName,
+        branch: data.branch,
+      });
+      return;
+    }
 
-    // Set a timeout to handle validation that takes too long
-    const timeoutId = setTimeout(() => {
-      if (isValidating && !validationResult) {
-        // If we're still validating after the timeout, show an error
-        setValidationPolling(false);
-        setValidationInitializing(false);
-        setValidationState("error");
-        setValidationError(
-          "Repository validation timed out. Please try again.",
+    // If validation is complete but credits are insufficient, do nothing (or show message)
+    if (isCurrentValidationComplete && !hasEnoughCredits) {
+      toast.error("Insufficient credits to create the project.");
+      return;
+    }
+
+    // Otherwise (not validated or starting fresh), trigger validation via Server Action
+    resetValidation();
+
+    try {
+      // 1. Request validation and get runId
+      const validationRequestResult = await requestRepositoryValidationAction({
+        githubUrl: data.repoUrl,
+        branch: data.branch,
+      });
+
+      if (validationRequestResult.success && validationRequestResult.runId) {
+        const runId = validationRequestResult.runId;
+
+        // 2. Generate the public access token for this runId
+        const tokenResult = await generateTriggerRunToken({ runId });
+
+        if (tokenResult.success && tokenResult.token) {
+          // 3. Set state to start monitoring with the hook
+          setValidationAccessToken(tokenResult.token);
+          setIsCurrentValidationComplete(false);
+          setValidationRunId(runId);
+        } else {
+          toast.error(
+            tokenResult.error || "Failed to get access token for validation.",
+          );
+        }
+      } else {
+        toast.error(
+          validationRequestResult.error || "Failed to start validation check.",
         );
-        toast.error("Repository validation took too long. Please try again.");
       }
-    }, VALIDATION_TIMEOUT_MS); // 4 minutes timeout
-
-    return () => clearTimeout(timeoutId);
-  }, [isValidating, validationResult]);
+    } catch (error) {
+      console.error(
+        "Error during validation request or token generation:",
+        error,
+      );
+      toast.error("An unexpected error occurred while requesting validation.");
+    }
+  };
 
   return (
     <>
@@ -730,28 +557,29 @@ export default function ProjectCreationCard({
             ) : null}
 
             {/* Validation states */}
-            {validationState === "validating" && (
+            {isValidating && (
               <Alert variant="info" className="flex gap-2">
                 <Spinner className="text-primary" />
                 <div>
                   <AlertTitle>Validating repository...</AlertTitle>
                   <AlertDescription>
-                    Please wait while we check your GitHub repository. This may
-                    take a few moments.
+                    Please wait while we check your GitHub repository.
                   </AlertDescription>
                 </div>
               </Alert>
             )}
 
-            {validationState === "error" && validationError && (
+            {hasValidationError && !isCurrentValidationComplete && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Repository validation failed</AlertTitle>
-                <AlertDescription>{validationError}</AlertDescription>
+                <AlertDescription>
+                  {validationError || "An unknown error occurred."}
+                </AlertDescription>
               </Alert>
             )}
 
-            {validationState === "validated" && validationResult && (
+            {isCurrentValidationComplete && (
               <Alert variant="success">
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertTitle>Repository validated successfully</AlertTitle>
@@ -762,32 +590,30 @@ export default function ProjectCreationCard({
               </Alert>
             )}
 
-            {validationState === "validated" && validationResult && (
-              <Alert variant="info">
-                <Info className="h-4 w-4" />
-                <AlertTitle>Credit Information</AlertTitle>
-                <AlertDescription>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      Credits required:{" "}
-                      <strong>{validationResult.fileCount}</strong>
-                    </p>
-                    <p>
-                      Your credits:{" "}
-                      <strong>{validationResult.userCredits}</strong>
-                    </p>
-                    {!hasEnoughCredits && (
-                      <p className="text-red-500 dark:text-red-400">
-                        You need{" "}
-                        {(validationResult.fileCount || 0) -
-                          (validationResult.userCredits || 0)}{" "}
-                        more credits.
+            {/* Credit Information Alert - uses derived state */}
+            {isCurrentValidationComplete &&
+              typeof fileCount === "number" &&
+              typeof userCredits === "number" && (
+                <Alert variant="info">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Credit Information</AlertTitle>
+                  <AlertDescription>
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        Credits required: <strong>{fileCount}</strong>
                       </p>
-                    )}
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
+                      <p>
+                        Your credits: <strong>{userCredits}</strong>
+                      </p>
+                      {!hasEnoughCredits && (
+                        <p className="text-red-500 dark:text-red-400">
+                          You need {fileCount - userCredits} more credits.
+                        </p>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
           </form>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
@@ -802,7 +628,7 @@ export default function ProjectCreationCard({
           </Button>
 
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            {!hasEnoughCredits && validationState === "validated" && (
+            {!hasEnoughCredits && isCurrentValidationComplete && (
               <Link href="/billing" className="w-full sm:w-auto">
                 <Button className="w-full" disabled={isCreatingProject}>
                   <CreditCard className="h-4 w-4" />
@@ -811,8 +637,7 @@ export default function ProjectCreationCard({
               </Link>
             )}
 
-            {/* Only show the submit button if user has enough credits or is not yet validated */}
-            {(hasEnoughCredits || validationState !== "validated") && (
+            {!(isCurrentValidationComplete && !hasEnoughCredits) && (
               <Button
                 type="submit"
                 form="project-form"
@@ -821,7 +646,9 @@ export default function ProjectCreationCard({
                   isCreatingProject ||
                   isValidating ||
                   !canValidate ||
-                  !formIsValid
+                  !formIsValid ||
+                  branchState.isLoading ||
+                  (isCurrentValidationComplete && !hasEnoughCredits)
                 }
               >
                 {branchState.isLoading ? (
@@ -831,7 +658,7 @@ export default function ProjectCreationCard({
                   </>
                 ) : (
                   <>
-                    {!isValidating && getButtonIcon()}
+                    {!isValidating && !isCreatingProject && getButtonIcon()}
                     <span>{getButtonText()}</span>
                     {(isValidating || isCreatingProject) && (
                       <Spinner className="text-white" size="small" />

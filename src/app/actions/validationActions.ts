@@ -13,10 +13,15 @@ const actionInputSchema = z.object({
   branch: z.string(),
 });
 
+// Updated return type to include runId
 export async function requestRepositoryValidationAction(input: {
   githubUrl: string;
   branch: string;
-}) {
+}): Promise<{
+  success: boolean;
+  error: string | null;
+  runId: string | null; // Changed from validationId
+}> {
   // Await auth() and then get userId
   const authResult = await auth();
   const userId = authResult?.userId;
@@ -26,7 +31,7 @@ export async function requestRepositoryValidationAction(input: {
     return {
       success: false,
       error: "Authentication required.",
-      validationId: null,
+      runId: null,
     };
   }
 
@@ -40,19 +45,20 @@ export async function requestRepositoryValidationAction(input: {
     return {
       success: false,
       error: "Invalid input provided.",
-      validationId: null,
+      runId: null,
     };
   }
 
   const { githubUrl, branch } = parseResult.data;
-  let validationResultId: string | null = null;
+  let validationRecordId: string | null = null;
 
   try {
-    // 1. Create/Update Validation Record in DB
-    const validationResult = await db.validationResult.upsert({
+    // 1. Upsert Validation Record - Primarily to ensure it exists
+    const validationRecord = await db.validationResult.upsert({
       where: {
         userId_githubUrl_branch: { userId, githubUrl, branch },
       },
+      // Still set PROCESSING on update/create for initial state
       update: {
         status: ValidationStatus.PROCESSING,
         error: null,
@@ -66,29 +72,28 @@ export async function requestRepositoryValidationAction(input: {
         branch,
         status: ValidationStatus.PROCESSING,
       },
+      // Select the ID to pass to the task if needed (optional but good practice)
       select: { id: true },
     });
-    validationResultId = validationResult.id;
+    validationRecordId = validationRecord.id;
 
     // 2. Trigger the validation task
-    // Use tasks.trigger with the imported task type
     const handle = await tasks.trigger<typeof validateRepositoryTask>(
-      "validate-repository", // Task ID
+      "validate-repository",
       {
-        // Payload matching the task's schema
         userId,
         githubUrl,
         branch,
-        validationResultId: validationResult.id,
+        validationResultId: validationRecord.id, // Pass DB ID if task needs it
       },
     );
 
     console.log(
-      `Server Action: Triggered task run ${handle.id} for validation ${validationResult.id}`,
+      `Server Action: Triggered task run ${handle.id} for validation DB record ${validationRecord.id}`,
     );
 
-    // Return success and the ID needed for polling
-    return { success: true, error: null, validationId: validationResult.id };
+    // 3. Return success and the RUN ID
+    return { success: true, error: null, runId: handle.id };
   } catch (error) {
     console.error(
       "Server Action Error: Failed to request repository validation:",
@@ -99,11 +104,11 @@ export async function requestRepositoryValidationAction(input: {
         ? error.message
         : "Unknown error during validation request.";
 
-    // Attempt to update DB record to ERROR if it was created
-    if (validationResultId) {
+    // Attempt to update DB record to ERROR state only if we know its ID
+    if (validationRecordId) {
       try {
         await db.validationResult.update({
-          where: { id: validationResultId },
+          where: { id: validationRecordId },
           data: {
             status: ValidationStatus.ERROR,
             error: "Failed to trigger validation task.",
@@ -116,10 +121,11 @@ export async function requestRepositoryValidationAction(input: {
         );
       }
     }
+
     return {
       success: false,
       error: `Failed to start validation: ${errorMessage}`,
-      validationId: null,
+      runId: null,
     };
   }
 }
