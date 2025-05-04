@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
   CreditCard,
@@ -26,27 +27,29 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  triggerCommitProcessingAction,
+  triggerReindexCommitsAction,
+} from "@/app/actions/commitActions";
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
+  const searchParams = useSearchParams();
 
-  // Check if this is a newly created project from localStorage
+  // Check if this is a newly created project from query param
   const isNewProject = useMemo(() => {
-    const lastCreatedProject = localStorage.getItem("lastCreatedProject");
-    const isNew = lastCreatedProject === projectId;
-
-    // If this is a new project, we should preserve this information
-    if (isNew) {
-      // Create a session flag to remember this is a new project even after localStorage is cleared
-      sessionStorage.setItem("currentProjectIsNew", "true");
+    // Check the 'new' query parameter first
+    const newParam = searchParams?.get("new");
+    if (newParam === "true") {
+      return true;
     }
-
-    // Check both localStorage and sessionStorage
-    return isNew || sessionStorage.getItem("currentProjectIsNew") === "true";
-  }, [projectId]);
+    // Fallback check using localStorage for direct refresh cases
+    const lastCreatedProject = localStorage.getItem("lastCreatedProject");
+    return lastCreatedProject === projectId;
+  }, [projectId, searchParams]);
 
   const [hasPendingSummaries, setHasPendingSummaries] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
   const [isReindexing, setIsReindexing] = useState(false);
   const globalRefetch = useRefetch();
 
@@ -57,9 +60,7 @@ export default function CommitLog() {
   const refetchCountRef = useRef(0);
 
   // Calculate dynamic refetch interval based on pending summaries
-  const refetchInterval = hasPendingSummaries
-    ? 5000 // 5 seconds if there are pending summaries (faster)
-    : 180000; // 3 minutes for regular updates
+  const refetchInterval = hasPendingSummaries ? 5000 : false; // Only poll actively if summaries are pending
 
   // Fetch commits using TRPC
   const {
@@ -71,9 +72,9 @@ export default function CommitLog() {
     {
       enabled: !!projectId,
       refetchInterval,
-      staleTime: hasPendingSummaries ? 1000 : 60000,
-      refetchOnWindowFocus: true, // Add this to refetch when the window regains focus
-      refetchOnMount: true, // Always refetch when component mounts
+      staleTime: 5000, // Keep data fresh for 5 seconds
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
     },
   );
 
@@ -87,157 +88,99 @@ export default function CommitLog() {
     fileCount: 0,
   };
 
-  // Process commits mutation - centralized in the commit router
-  const processCommitsMutation = api.commit.processCommits.useMutation({
-    onSuccess: async (result) => {
-      toast.success("Refreshing commits...");
-
+  // --- Centralized Function to Trigger Refresh ---
+  const triggerRefresh = useCallback(
+    async (isInitialLoad = false) => {
+      if (!projectId || refreshInProgressRef.current) {
+        return;
+      }
+      refreshInProgressRef.current = true;
+      toast.info(
+        isInitialLoad
+          ? "Starting initial commit analysis..."
+          : "Checking for new commits...",
+      );
       try {
-        // Check if project creation is already in progress - if so, skip this request
-        const projectCreationInProgress =
-          localStorage.getItem("projectCreationInProgress") === "true";
-        if (projectCreationInProgress) {
-          // Still clear the flag to ensure proper state
-          localStorage.removeItem("projectCreationInProgress");
-
-          // Don't send another request, just refresh UI
-          refreshInProgressRef.current = false;
-          refetch({ throwOnError: false });
-          return;
-        }
-
-        // Reset refetch counter at the start of a new refresh cycle
-        refetchCountRef.current = 0;
-
-        // Make the direct fetch to the background function from the client side
-        await fetch("/api/process-commits", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId: result.data.projectId,
-            githubUrl: result.data.githubUrl,
-            isProjectCreation: isNewProject ? true : false,
-          }),
+        const result = await triggerCommitProcessingAction({
+          projectId,
+          isProjectCreation: isInitialLoad,
         });
-
-        // First immediate refetch to check for any existing commits
-        refetch({ throwOnError: false });
-        refetchCountRef.current++;
-
-        // Set a longer timeout for a second refetch to ensure we get all the new commits
-        // This longer delay gives the background process enough time to create the commits
-        setTimeout(() => {
-          if (refetchCountRef.current < 3) {
-            refetch({ throwOnError: false });
-            refetchCountRef.current++;
-            setLastRefreshTime(Date.now());
-          }
-          refreshInProgressRef.current = false; // Reset refresh flag when done
-        }, 4000);
+        if (result.success) {
+          toast.success("Commit check started. New data will appear shortly.");
+          setLastRefreshTime(Date.now());
+          setTimeout(() => {
+            refetch();
+            refreshInProgressRef.current = false;
+          }, 3000);
+        } else {
+          console.error(
+            `Failed to trigger commit processing for project ${projectId}:`,
+            result.error,
+          );
+          toast.error(result.error || "Failed to start commit check.");
+          refreshInProgressRef.current = false;
+        }
       } catch (error) {
-        console.error("Error calling background function:", error);
-        refetch();
-        refreshInProgressRef.current = false; // Reset refresh flag on error too
+        console.error("Error triggering commit processing action:", error);
+        toast.error("Failed to check commits due to an unexpected error.");
+        refreshInProgressRef.current = false;
       }
     },
-    onError: (error) => {
-      toast.error("Failed to refresh commits: " + error.message);
-      refreshInProgressRef.current = false; // Reset refresh flag on error
-    },
-  });
+    [projectId, refetch],
+  );
 
   // Handle refresh button click
   const handleRefreshCommits = () => {
-    if (!projectId || !project?.githubUrl || refreshInProgressRef.current)
-      return;
-
-    refreshInProgressRef.current = true; // Set the flag to prevent duplicate requests
-
-    // Initial refetch to get latest data
-    refetch({ throwOnError: false });
-
-    // Safety timeout to reset the flag in case something goes wrong
-    setTimeout(() => {
-      refreshInProgressRef.current = false;
-    }, 20000); // 20 seconds max timeout to account for longer processing
-
-    processCommitsMutation.mutate({
-      projectId,
-      githubUrl: project.githubUrl,
-    });
+    triggerRefresh(false);
   };
 
-  // Check if we need to load commits initially or refresh them
+  // Initial load/refresh logic - SIMPLIFIED
+  const initialCheckPerformed = useRef(false);
+
   useEffect(() => {
-    // Only proceed if we have project details
-    if (!projectId || !project?.githubUrl) return;
+    if (!projectId || initialCheckPerformed.current) return;
 
-    // Don't start another refresh if one is already in progress
-    if (refreshInProgressRef.current) return;
+    // This effect runs on mount and when projectId/isLoading/commits change.
+    // We only want to perform the *initial* check logic ONCE.
 
-    // If project creation is in progress, we'll skip automatic refresh and let the background
-    // function handle it - this prevents multiple refreshes
-    const projectCreationInProgress =
-      localStorage.getItem("projectCreationInProgress") === "true";
-    if (projectCreationInProgress) {
-      // Clear the flag after we've detected it
-      localStorage.removeItem("projectCreationInProgress");
-      return;
-    }
+    if (!isLoading && !refreshInProgressRef.current) {
+      // Mark that we've performed the initial check now
+      initialCheckPerformed.current = true;
 
-    // If this is a new project, we should always refresh commits
-    if (isNewProject) {
-      handleRefreshCommits();
-      return;
-    }
-
-    // For existing projects, only refresh if we have no commits or it's been a while
-    const needsRefresh =
-      !commits ||
-      commits.length === 0 ||
-      Date.now() - lastRefreshTime > 10 * 60 * 1000;
-
-    if (needsRefresh) {
-      handleRefreshCommits();
-    }
-  }, [projectId, project?.githubUrl, isNewProject, commits, lastRefreshTime]);
-
-  // Check for pending summaries and update state
-  useEffect(() => {
-    if (commits && commits.length > 0) {
-      // Reset the refresh flag when commits data is loaded
-      refreshInProgressRef.current = false;
-
-      const pending = commits.some(
-        (commit) => commit.summary === "Analyzing commit...",
-      );
-
-      // Only update state if it's changed to avoid unnecessary rerenders
-      if (pending !== hasPendingSummaries) {
-        setHasPendingSummaries(pending);
-
-        // If there were pending summaries but now they're all done, do a forced refetch,
-        // but only if we haven't already done too many refetches
-        if (!pending && hasPendingSummaries && refetchCountRef.current < 3) {
-          refetchCountRef.current++;
-          refetch();
+      if (commits.length === 0) {
+        // If loading is done and there are NO commits,
+        // assume this is the first load and trigger a refresh.
+        // Use the isNewProject flag derived from query param / localStorage
+        triggerRefresh(isNewProject); // Pass the flag
+      } else {
+        // If commits *are* present on first load, we might still need to clear the localStorage flag
+        // if the user navigated here via direct refresh instead of the standard flow
+        if (localStorage.getItem("lastCreatedProject") === projectId) {
+          localStorage.removeItem("lastCreatedProject");
         }
+        // ALSO trigger a standard refresh check when commits are already loaded on mount
+        triggerRefresh(false);
+      }
+    }
+    // Cleanup: We don't need to manage the query param, it's part of the URL state.
+    // The localStorage flag is handled above.
+  }, [projectId, isLoading, commits, triggerRefresh, isNewProject]);
+
+  // Check for pending summaries and update polling state
+  useEffect(() => {
+    const pending = commits?.some(
+      (commit) => commit.summary === "Processing...",
+    );
+    if (pending !== hasPendingSummaries) {
+      setHasPendingSummaries(!!pending);
+      // If we just finished processing, trigger one final refetch immediately
+      if (!pending && hasPendingSummaries) {
+        // Reset refetch in progress flag before final refetch
+        refreshInProgressRef.current = false;
+        refetch();
       }
     }
   }, [commits, hasPendingSummaries, refetch]);
-
-  // Clear the session flag after the first commit refresh
-  useEffect(() => {
-    if (
-      commits &&
-      commits.length > 0 &&
-      sessionStorage.getItem("currentProjectIsNew") === "true"
-    ) {
-      sessionStorage.removeItem("currentProjectIsNew");
-    }
-  }, [commits]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -245,78 +188,83 @@ export default function CommitLog() {
       // Reset refresh state when component unmounts
       refreshInProgressRef.current = false;
       refetchCountRef.current = 0;
-      localStorage.removeItem("projectCreationInProgress");
-      sessionStorage.removeItem("currentProjectIsNew");
+      // Don't clear projectCreationInProgress here, it's cleared on use
+      // Don't clear currentProjectIsNew here, let the other effect handle it
     };
   }, []);
 
-  // New mutation for confirming reindexing
+  // Mutation for confirming reindexing
   const confirmReindexMutation = api.commit.confirmReindex.useMutation({
     onSuccess: async (result) => {
-      toast.success("Starting reindexing process...");
+      toast.info("Starting reindexing process...");
       setIsReindexing(true);
 
       try {
-        // Call the background function to actually perform the reindexing
-        const response = await fetch("/api/reindex-commits", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId: result.data.projectId,
-            githubUrl: result.data.githubUrl,
-            commitIds: result.data.commitIds,
-          }),
+        // Call the new Server Action instead of tasks.trigger
+        const actionResult = await triggerReindexCommitsAction({
+          projectId: result.data.projectId,
+          githubUrl: result.data.githubUrl,
+          commitIds: result.data.commitIds,
         });
 
-        // Check if the request was successful
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        // Set a timer to check status periodically
-        const checkInterval = setInterval(async () => {
-          try {
-            const { data } = await refetch();
-            // If no more commits need reindexing, stop checking
-            if (!data?.reindexMetadata?.commitCount) {
+        if (actionResult.success && actionResult.runId) {
+          // Keep existing polling logic using refetch to update UI
+          const checkInterval = setInterval(async () => {
+            try {
+              const { data } = await refetch();
+              if (data?.reindexMetadata?.commitCount === 0) {
+                clearInterval(checkInterval);
+                setIsReindexing(false);
+                toast.success("Reindexing completed successfully!");
+                globalRefetch();
+              }
+            } catch (error) {
+              console.error(
+                "Error checking reindex status via refetch:",
+                error,
+              );
               clearInterval(checkInterval);
               setIsReindexing(false);
-              toast.success("Reindexing completed successfully!");
-
-              // Trigger global refetch to update credits
-              globalRefetch();
+              toast.error("Error checking reindex status");
             }
-          } catch (error) {
-            console.error("Error checking reindex status:", error);
-            clearInterval(checkInterval);
-            setIsReindexing(false);
-            toast.error("Error checking reindex status");
-          }
-        }, 5000);
+          }, 7000);
 
-        // Safety cleanup after 10 minutes
-        setTimeout(
-          () => {
-            clearInterval(checkInterval);
-            if (isReindexing) {
-              setIsReindexing(false);
-              refetch();
-              globalRefetch();
-              toast.info("Reindexing timed out. Please check the status.");
-            }
-          },
-          10 * 60 * 1000,
-        );
+          // Safety cleanup after 15 minutes
+          setTimeout(
+            () => {
+              clearInterval(checkInterval);
+              if (isReindexing) {
+                setIsReindexing(false);
+                refetch();
+                globalRefetch();
+                toast.info(
+                  "Reindexing check timed out. Please refresh manually if needed.",
+                );
+              }
+            },
+            15 * 60 * 1000,
+          );
+        } else {
+          // Handle failure from the server action call
+          throw new Error(
+            actionResult.error ||
+              "Failed to trigger reindexing task via server action.",
+          );
+        }
       } catch (error) {
-        console.error("Error calling reindex function:", error);
+        // Catch errors from calling the server action or subsequent logic
+        console.error("Error in reindex confirmation flow:", error);
         setIsReindexing(false);
-        toast.error("Failed to start reindexing process.");
-        refetch();
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to start reindexing task.",
+        );
+        refetch(); // Refetch even on error to get latest state
       }
     },
     onError: (error) => {
+      // This catches errors from the initial confirmReindex TRPC mutation
       toast.error("Failed to confirm reindexing: " + error.message);
       setIsReindexing(false);
     },
@@ -362,7 +310,7 @@ export default function CommitLog() {
         </p>
         <Button
           onClick={handleRefreshCommits}
-          disabled={refreshInProgressRef.current}
+          disabled={refreshInProgressRef.current || isLoading}
         >
           {refreshInProgressRef.current ? (
             <>
@@ -507,7 +455,7 @@ export default function CommitLog() {
             variant="outline"
             size="sm"
             onClick={handleRefreshCommits}
-            disabled={refreshInProgressRef.current}
+            disabled={refreshInProgressRef.current || isLoading}
           >
             {refreshInProgressRef.current ? (
               <Spinner size="small" className="mr-1" />

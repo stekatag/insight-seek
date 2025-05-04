@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { readStreamableValue } from "ai/rsc";
 import { ExternalLink, FolderKanban, Settings } from "lucide-react";
@@ -36,7 +36,6 @@ import OnboardingView from "./components/onboarding-view";
 import ProjectUrl from "./components/project-url";
 
 function DashboardContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { project, projectId, isLoading: projectLoading } = useProject();
   const hasProject = !!project;
@@ -131,7 +130,7 @@ function DashboardContent() {
   useEffect(() => {
     if (!chats || isLoading) return;
 
-    const chatId = searchParams.get("chat");
+    const chatId = searchParams?.get("chat");
     if (chatId) {
       const chat = chats.find((c) => c.id === chatId);
       if (chat) {

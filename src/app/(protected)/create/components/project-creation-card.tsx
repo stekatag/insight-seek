@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import GitHubBranchSelector from "@/components/github-branch-selector";
 import GitHubRepoSelector from "@/components/github-repo-selector";
+import { requestRepositoryValidationAction } from "@/app/actions/validationActions";
 
 import { CreateProjectFormData } from "../page";
 
@@ -104,23 +105,47 @@ export default function ProjectCreationCard({
   // Track if we're in a validation initializing state (just requested validation but record not yet created)
   const [validationInitializing, setValidationInitializing] = useState(false);
 
-  // Use query for validation status polling
-  const { data: validationResult } = api.project.getValidationStatus.useQuery(
-    {
-      githubUrl: form.getValues("repoUrl"),
-      branch: form.getValues("branch"),
-    },
-    {
-      enabled:
-        validationPolling &&
-        !validationInitializing && // Don't query until initializing is done
-        !!form.getValues("repoUrl") &&
-        !!form.getValues("branch"),
-      refetchInterval: validationPolling ? 2000 : false,
-      retry: validationPolling,
-      retryDelay: 2000,
-    },
+  // Track server action pending state
+  const [isRequestingValidation, setIsRequestingValidation] = useState(false);
+
+  // ID used for polling - set when server action returns success
+  const [pollingValidationId, setPollingValidationId] = useState<string | null>(
+    null,
   );
+
+  // Query for validation status polling (watches form values AND uses pollingValidationId)
+  const watchedRepoUrl = form.watch("repoUrl");
+  const watchedBranch = form.watch("branch");
+  const { data: validationResult, error: validationQueryError } =
+    api.project.getValidationStatus.useQuery(
+      {
+        // These are needed to find the correct record in the DB via the unique constraint
+        githubUrl: watchedRepoUrl,
+        branch: watchedBranch,
+      },
+      {
+        // Enable polling only if we have an ID from the action AND polling is active
+        enabled:
+          validationPolling &&
+          !!pollingValidationId &&
+          !!watchedRepoUrl &&
+          !!watchedBranch,
+        refetchInterval: 3000,
+        retry: (failureCount, error: any) => {
+          // Don't retry endlessly if the record isn't found initially (might be race condition)
+          if (error?.data?.code === "NOT_FOUND") {
+            return failureCount < 3;
+          }
+          if (
+            error?.data?.code === "INTERNAL_SERVER_ERROR" ||
+            failureCount >= 5
+          )
+            return false;
+          return true;
+        },
+        refetchOnWindowFocus: false,
+      },
+    );
 
   // Project creation status polling
   const { data: projectCreationStatus } =
@@ -134,63 +159,78 @@ export default function ProjectCreationCard({
       },
     );
 
-  // Handle errors in validation status fetch
+  // Effect to handle polling results for validation
   useEffect(() => {
-    // If we're initializing or not polling, don't worry about errors
-    if (validationInitializing || !validationPolling) return;
+    if (!validationPolling || !validationResult || !pollingValidationId) return;
 
-    // Set up error handling for missing validation results
-    const errorTimeout = setTimeout(() => {
-      // If we're still polling but can't find the record after a while, give up
-      if (validationPolling && !validationResult) {
-        setValidationPolling(false);
-        setValidationState("error");
-        setValidationError("Repository validation failed. Please try again.");
-        toast.error("Repository validation failed. Please try again.");
-      }
-    }, 5000); // Give it 5 seconds to find the record
-
-    return () => clearTimeout(errorTimeout);
-  }, [validationPolling, validationInitializing, validationResult]);
-
-  // Effect to handle validation status changes
-  useEffect(() => {
-    if (!validationResult) return;
-
-    // Once we get a valid result, we're definitely not initializing anymore
-    if (validationInitializing) {
-      setValidationInitializing(false);
-    }
-
-    // Check if this validation result is for the current form values
-    // This prevents stale validation results from being used
-    const currentGithubUrl = form.getValues("repoUrl");
-    const currentBranch = form.getValues("branch");
-
-    if (
-      validationResult.githubUrl !== currentGithubUrl ||
-      validationResult.branch !== currentBranch
-    ) {
-      // This is a stale result, ignore it
+    // Ensure we are polling for the specific validation triggered
+    if (validationResult.id !== pollingValidationId) {
+      console.log("Stale validation result ignored (ID mismatch).");
       return;
     }
 
-    if (validationResult.status === ValidationStatus.COMPLETED) {
-      setValidationPolling(false);
-      setValidationState("validated");
-
-      if (!validationResult.hasEnoughCredits) {
-        toast.warning("You need more credits to create this project.");
-      }
-    } else if (validationResult.status === ValidationStatus.ERROR) {
-      setValidationPolling(false);
-      setValidationState("error");
-      setValidationError(
-        validationResult.error || "Repository validation failed",
-      );
-      toast.error(validationResult.error || "Failed to validate repository");
+    switch (validationResult.status) {
+      case ValidationStatus.PROCESSING:
+        setValidationState("validating");
+        setValidationError(null);
+        break;
+      case ValidationStatus.COMPLETED:
+        setValidationState("validated");
+        setValidationError(null);
+        setValidationPolling(false); // Stop polling
+        if (!validationResult.hasEnoughCredits) {
+          toast.warning("You need more credits for this project.");
+        }
+        break;
+      case ValidationStatus.ERROR:
+        setValidationState("error");
+        setValidationError(
+          validationResult.error || "Repository validation failed.",
+        );
+        toast.error(validationResult.error || "Repository validation failed.");
+        setValidationPolling(false); // Stop polling
+        break;
     }
-  }, [validationResult, validationInitializing, form]);
+  }, [validationResult, validationPolling, pollingValidationId]);
+
+  // Effect to handle query errors during validation polling
+  useEffect(() => {
+    if (validationQueryError && validationPolling) {
+      console.error("Error polling validation status:", validationQueryError);
+      // Don't set error state if it was just a NOT_FOUND during init/race condition
+      if (validationQueryError.data?.code !== "NOT_FOUND") {
+        setValidationState("error");
+        setValidationError(
+          "Failed to get validation status. Please try again.",
+        );
+        toast.error("Failed to get validation status.");
+        setValidationPolling(false);
+      }
+    }
+  }, [validationQueryError, validationPolling]);
+
+  // Client-side timeout for validation
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    // Consider validating if the action is pending OR polling is active
+    const isActiveValidating = isRequestingValidation || validationPolling;
+
+    if (isActiveValidating) {
+      timeoutId = setTimeout(() => {
+        if (isRequestingValidation || validationPolling) {
+          console.error("Client-side validation timeout reached.");
+          setValidationState("error");
+          setValidationError("Repository check timed out. Please try again.");
+          toast.error("Repository check timed out. Please try again.");
+          setValidationPolling(false);
+          setIsRequestingValidation(false);
+        }
+      }, VALIDATION_TIMEOUT_MS);
+    }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isRequestingValidation, validationPolling]);
 
   // Effect to handle project creation status changes
   useEffect(() => {
@@ -200,45 +240,18 @@ export default function ProjectCreationCard({
       projectCreationStatus.status === "COMPLETED" &&
       projectCreationStatus.projectId
     ) {
+      const projectId = projectCreationStatus.projectId;
+      console.log(`Project ${projectId} created successfully.`);
+
       // Stop polling once we have the project ID
       setProjectCreationPolling(false);
       setIsCreatingProject(false);
 
-      // IMPORTANT: Store the newly created project ID in localStorage - this is the key fix
-      localStorage.setItem(
-        "lastCreatedProject",
-        projectCreationStatus.projectId,
-      );
+      // Set flags for the commit log component to pick up
+      localStorage.setItem("lastCreatedProject", projectId);
 
-      // Set a flag to indicate project creation is happening - this prevents multiple commit refreshes
-      localStorage.setItem("projectCreationInProgress", "true");
-
-      // Now that the project is created, manually trigger the commit processing
-      // This ensures it happens on the client side and won't get lost
-      const projectId = projectCreationStatus.projectId;
-      const githubUrl = projectCreationStatus.githubUrl;
-
-      // Send the commit processing request directly from the client
-      fetch("/api/process-commits", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectId,
-          githubUrl,
-          isProjectCreation: true, // Always true for new projects
-        }),
-      }).catch((error) => {
-        console.error("Error processing commits:", error);
-        // Don't let this error prevent navigation
-      });
-
-      // Show success message
-      toast.success("Project created successfully!");
-
-      // Navigate to the dashboard with the new project ID
-      onSuccess(projectCreationStatus.projectId);
+      toast.success("Project created successfully! Redirecting...");
+      onSuccess(projectId); // Navigate
     } else if (projectCreationStatus.status === "ERROR") {
       // Stop polling on error
       setProjectCreationPolling(false);
@@ -333,59 +346,33 @@ export default function ProjectCreationCard({
     setValidationInitializing(false);
     setValidationState("idle");
     setValidationError(null);
+    setPollingValidationId(null); // Clear the ID used for polling
     checkCredits.reset();
   }, [checkCredits]);
 
   // Start project creation mutation
   const startProjectCreation = api.project.startProjectCreation.useMutation({
     onSuccess: async (data) => {
-      const { projectCreationId } = data;
-
-      // Store the project creation ID
-      setProjectCreationId(projectCreationId);
-
-      // Call the Netlify background function directly
-      try {
-        const formData = form.getValues();
-
-        await axios.post(
-          "/api/create-project",
-          {
-            projectCreationId,
-            name: formData.projectName,
-            githubUrl: formData.repoUrl,
-            branch: formData.branch,
-            userId,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
+      if (data.success && data.projectCreationId) {
+        console.log(
+          "tRPC startProjectCreation succeeded, proceeding to poll.",
+          data,
         );
-
-        // Start polling for the status
+        setProjectCreationId(data.projectCreationId);
         setProjectCreationPolling(true);
-      } catch (error) {
-        console.error("Error triggering background function:", error);
-        toast.error("Failed to start project creation");
+      } else {
+        console.error(
+          "tRPC startProjectCreation failed to trigger task:",
+          data.message,
+        );
+        toast.error(data.message || "Failed to start project creation task.");
         setIsCreatingProject(false);
       }
     },
     onError: (error) => {
-      console.error("Project creation error:", error);
-
-      // Get a specific error message if available
-      const errorMessage = error.message || "Failed to start project creation";
-
-      // Show a more detailed toast message
-      toast.error(errorMessage);
-
-      // Always reset the creating state
+      console.error("tRPC startProjectCreation Error:", error);
+      toast.error(error.message || "Failed to start project creation");
       setIsCreatingProject(false);
-
-      // Reset validation state to allow retrying
-      setValidationState("validated");
     },
   });
 
@@ -459,12 +446,11 @@ export default function ProjectCreationCard({
   };
 
   // Handle form submission
-  const onSubmit = (data: CreateProjectFormData) => {
-    if (validationState === "validated" && validationResult) {
-      // Proceed with project creation
+  const onSubmit = async (data: CreateProjectFormData) => {
+    // Check if validation is complete and successful
+    if (validationState === "validated" && validationResult?.hasEnoughCredits) {
+      // Proceed with project creation (using the existing mutation for now)
       setIsCreatingProject(true);
-
-      // Start the project creation process
       startProjectCreation.mutate({
         githubUrl: data.repoUrl,
         name: data.projectName,
@@ -473,12 +459,45 @@ export default function ProjectCreationCard({
       return;
     }
 
-    // Otherwise, validate the repo first
+    // If not validated or not enough credits, trigger validation via Server Action
+    console.log("Triggering repository validation via Server Action...");
     setValidationState("validating");
     setValidationError(null);
+    setPollingValidationId(null); // Clear previous polling ID
+    setValidationPolling(false); // Ensure polling stops
+    setIsRequestingValidation(true); // Set pending state for server action
 
-    // Start background validation directly
-    validateRepositoryBackground(data.repoUrl, data.branch);
+    try {
+      const result = await requestRepositoryValidationAction({
+        githubUrl: data.repoUrl,
+        branch: data.branch,
+      });
+
+      if (result.success && result.validationId) {
+        console.log(
+          "Server action successful, validation ID:",
+          result.validationId,
+        );
+        setPollingValidationId(result.validationId); // Set the ID for polling
+        setValidationPolling(true); // Start polling
+      } else {
+        console.error("Server action failed:", result.error);
+        setValidationState("error");
+        setValidationError(result.error || "Failed to start validation check.");
+        toast.error(result.error || "Failed to start validation check.");
+        setValidationPolling(false); // Ensure polling doesn't start on error
+      }
+    } catch (error) {
+      console.error("Error calling server action:", error);
+      setValidationState("error");
+      setValidationError(
+        "An unexpected error occurred while requesting validation.",
+      );
+      toast.error("An unexpected error occurred.");
+      setValidationPolling(false);
+    } finally {
+      setIsRequestingValidation(false); // Clear pending state
+    }
   };
 
   // Check if user has enough credits - use validation result if available
@@ -502,8 +521,7 @@ export default function ProjectCreationCard({
     !branchState.isLoading;
 
   // Handle loading/polling for validation with spinner or indicator
-  const isValidating =
-    validationPolling || checkCredits.isPending || validationInitializing;
+  const isValidating = isRequestingValidation || validationPolling;
 
   // Get the correct button text based on validation state
   const getButtonText = () => {

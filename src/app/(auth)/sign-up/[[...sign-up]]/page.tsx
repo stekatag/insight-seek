@@ -31,7 +31,9 @@ const getExtensionRedirectUrl = (param: string | null): string | null => {
 
 export default function SignUpPage() {
   const searchParams = useSearchParams();
-  const originalRedirectUrlParam = searchParams.get("redirectUrl");
+  const originalRedirectUrlParam = searchParams
+    ? searchParams.get("redirectUrl")
+    : null;
   const extensionRedirectUrl = getExtensionRedirectUrl(
     originalRedirectUrlParam,
   );

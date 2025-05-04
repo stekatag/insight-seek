@@ -14,12 +14,6 @@ export function createRobustOctokit(userToken?: string, signal?: AbortSignal) {
       // Increase timeout to handle larger repositories
       timeout: 40000, // 40 seconds
       signal,
-      // Add retry logic for better reliability
-      retry: {
-        doNotRetry: ["429", "AbortError"],
-        retries: 2,
-        factor: 1.5,
-      },
     },
   });
 }
@@ -191,4 +185,153 @@ export async function getRepositoryBranches(
     );
     return [];
   }
+}
+
+export function parseGitHubUrl(url: string): { owner: string; repo: string } {
+  const match = url.match(/github\.com\/([^\/]+)\/([^\/]+?)(\.git)?$/i);
+  if (!match || !match[1] || !match[2]) {
+    throw new Error(`Invalid GitHub URL format: ${url}`);
+  }
+  return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
+}
+
+// Helper function to extract files from git diff
+export function extractFilesFromDiff(diffContent: string): string[] {
+  if (!diffContent || typeof diffContent !== "string") {
+    console.error("Invalid diff content:", diffContent);
+    return [];
+  }
+
+  console.log("Analyzing diff content for file changes...");
+
+  const modifiedFiles = new Set<string>();
+
+  // Use multiple patterns to capture file paths
+  const diffFileRegex = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  const fileHeaderRegex = /^(\+\+\+|---) [ab]\/(.+?)$/gm;
+
+  // Check standard git diff format
+  let match;
+  while ((match = diffFileRegex.exec(diffContent)) !== null) {
+    if (match[2]) {
+      const path = match[2].trim();
+      console.log(`Found modified file (diff format): ${path}`);
+      modifiedFiles.add(path);
+    }
+  }
+
+  // Check unified diff format
+  while ((match = fileHeaderRegex.exec(diffContent)) !== null) {
+    if (match[2]) {
+      const path = match[2].trim();
+      console.log(`Found modified file (header format): ${path}`);
+      modifiedFiles.add(path);
+    }
+  }
+
+  // Log diagnostic info for debugging
+  if (modifiedFiles.size === 0) {
+    console.log(
+      "No files detected with standard patterns, checking raw diff...",
+    );
+    // console.log("Diff content sample:", diffContent.substring(0, 500) + "..."); // Avoid logging potentially large diffs
+  }
+
+  const files = Array.from(modifiedFiles);
+  console.log(`Total modified files from diff: ${files.length}`);
+  return files;
+}
+
+// Helper to determine if a file should be processed
+export function shouldProcessFile(filePath: string): boolean {
+  // Skip binary files, images, etc.
+  const excludedExtensions = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".ttf",
+    ".woff",
+    ".woff2",
+    ".eot",
+    ".mp3",
+    ".mp4",
+    ".webm",
+    ".pdf",
+    ".zip",
+    ".tar.gz",
+    ".jar",
+    ".exe",
+    ".bin",
+  ];
+
+  // Skip configuration files, lock files, etc.
+  const excludedFilePatterns = [
+    "package-lock.json",
+    "bun.lockb",
+    "pnpm-lock.yaml",
+    "Gemfile.lock",
+    "poetry.lock",
+    "yarn.lock",
+    ".gitignore",
+    ".gitattributes",
+    ".gitmodules",
+    ".npmrc",
+    ".yarnrc",
+    ".editorconfig",
+    ".eslintignore",
+    ".prettierignore",
+    ".env",
+    "LICENSE",
+  ];
+
+  // Skip common build/dependency directories
+  const excludedDirPatterns = [
+    "node_modules/",
+    "dist/",
+    "build/",
+    ".next/",
+    "out/",
+    "vendor/",
+    ".venv/",
+    "target/", // Rust/Java
+    "Pods/", // iOS
+    ".gradle/", // Android/Gradle
+  ];
+
+  const lowerFilePath = filePath.toLowerCase();
+
+  // Check excluded extensions
+  if (excludedExtensions.some((ext) => lowerFilePath.endsWith(ext))) {
+    // console.log(`File ${filePath} excluded due to extension`);
+    return false;
+  }
+
+  // Check specific excluded filenames
+  if (excludedFilePatterns.some((pattern) => lowerFilePath.endsWith(pattern))) {
+    // console.log(`File ${filePath} excluded due to pattern match (filename)`);
+    return false;
+  }
+
+  // Check excluded directory patterns
+  if (excludedDirPatterns.some((pattern) => lowerFilePath.includes(pattern))) {
+    // console.log(`File ${filePath} excluded due to pattern match (directory)`);
+    return false;
+  }
+
+  // Skip minified files
+  if (
+    lowerFilePath.includes(".min.") ||
+    lowerFilePath.endsWith(".min.js") ||
+    lowerFilePath.endsWith(".min.css")
+  ) {
+    // console.log(`File ${filePath} excluded due to minified pattern`);
+    return false;
+  }
+
+  // Add more specific checks if needed, e.g., very large files
+
+  return true;
 }

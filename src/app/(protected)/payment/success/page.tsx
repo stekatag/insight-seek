@@ -20,7 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 // Client component that uses useSearchParams
 function PaymentSuccessContent() {
   const params = useSearchParams();
-  const credits = params.get("credits");
+  const credits = params?.get("credits");
   const { data: user, isLoading } = api.user.getMyCredits.useQuery();
 
   return (

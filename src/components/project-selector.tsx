@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronsUpDown, FolderKanban, Plus } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cleanupProjectUrlParams, cn } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,9 @@ export function ProjectSelector({ className }: { className?: string }) {
   const { projects, projectId, setProjectId, isLoading } = useProject();
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredProjects, setFilteredProjects] = useState(projects || []);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Check for last created project in localStorage
   useEffect(() => {
@@ -145,7 +149,8 @@ export function ProjectSelector({ className }: { className?: string }) {
                     onSelect={(currentValue) => {
                       setProjectId(currentValue);
                       setOpen(false);
-                      setSearchQuery(""); // Reset search when selecting
+                      setSearchQuery("");
+                      cleanupProjectUrlParams(router, pathname, searchParams);
                     }}
                     className="flex items-center justify-between"
                   >

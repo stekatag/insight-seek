@@ -50,7 +50,7 @@ function QAContent() {
 
   // Initialize page from URL or default to 1
   const [currentPage, setCurrentPage] = useState(() => {
-    const pageParam = searchParams.get("page");
+    const pageParam = searchParams?.get("page");
     return pageParam ? parseInt(pageParam, 10) : 1;
   });
 
@@ -109,7 +109,7 @@ function QAContent() {
   useEffect(() => {
     if (!chats || isLoading) return;
 
-    const chatId = searchParams.get("chat");
+    const chatId = searchParams?.get("chat");
     if (chatId) {
       // Use optimized lookup for better performance
       const chat =
@@ -142,7 +142,7 @@ function QAContent() {
       setCurrentPage(page);
 
       // Update URL without full navigation
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams?.toString());
       params.set("page", page.toString());
       router.push(`?${params.toString()}`, { scroll: false });
     },

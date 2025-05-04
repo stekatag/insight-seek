@@ -1,3 +1,5 @@
+import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { ReadonlyURLSearchParams } from "next/navigation";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -258,3 +260,23 @@ export const TRUNCATION_LIMITS = {
   MEETING_NAME: 40,
   SEARCH_RESULT: 70,
 };
+
+/**
+ * Cleans up specific query parameters ('project', 'new') from the URL
+ * using Next.js App Router's router.replace.
+ */
+export function cleanupProjectUrlParams(
+  router: AppRouterInstance,
+  pathname: string | null,
+  searchParams: ReadonlyURLSearchParams | null,
+) {
+  if (!pathname || !searchParams) return; // Guard against null values
+
+  const currentParams = new URLSearchParams(searchParams.toString());
+  // Check if both params exist
+  if (currentParams.has("project") && currentParams.has("new")) {
+    // Replace the URL without the params.
+    // scroll: false prevents jumping to the top.
+    router.replace(pathname, { scroll: false });
+  }
+}

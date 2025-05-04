@@ -46,7 +46,7 @@ function MeetingDetailContent() {
 
   // Initialize page from URL or default to 1
   const [currentPage, setCurrentPage] = useState(() => {
-    const pageParam = searchParams.get("page");
+    const pageParam = searchParams?.get("page");
     return pageParam ? parseInt(pageParam, 10) : 1;
   });
 
@@ -56,7 +56,7 @@ function MeetingDetailContent() {
       setCurrentPage(page);
 
       // Preserve existing query params like chat id
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams?.toString());
       params.set("page", page.toString());
       router.push(`?${params.toString()}`, { scroll: false });
     },
@@ -67,7 +67,7 @@ function MeetingDetailContent() {
   const MEETING_ITEMS_PER_PAGE = 5;
 
   // Ensure meetingId is properly extracted as a string
-  const meetingId = params.meetingId as string;
+  const meetingId = params?.meetingId as string;
 
   // Use context instead of Zustand
   const { state, openDialog, addFollowUpOptimistically } = useChatContext();
@@ -103,7 +103,7 @@ function MeetingDetailContent() {
   useEffect(() => {
     if (!chats || chatsLoading) return;
 
-    const chatId = searchParams.get("chat");
+    const chatId = searchParams?.get("chat");
     if (chatId) {
       const chat = chats.find((c) => c.id === chatId);
       if (chat) {

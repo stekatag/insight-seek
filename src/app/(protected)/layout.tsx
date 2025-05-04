@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/sidebar/app-sidebar";
 import TopBar from "@/components/top-bar";
@@ -9,7 +11,9 @@ type Props = {
 export default function SidebarLayout({ children }: Props) {
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <Suspense fallback={<div>Loading Sidebar...</div>}>
+        <AppSidebar />
+      </Suspense>
       <main className="flex w-full flex-col">
         <TopBar />
         {/* main content */}

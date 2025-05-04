@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FolderKanban, Plus } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cleanupProjectUrlParams, cn } from "@/lib/utils";
 import useProject from "@/hooks/use-project";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,9 @@ interface NavProjectsProps {
 export default function NavProjects({ handleNavigation }: NavProjectsProps) {
   const { open } = useSidebar();
   const { projects, projectId, setProjectId, isLoading } = useProject();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Sort projects by creation date (newest first) and take only the first 5
   const recentProjects = projects
@@ -69,6 +73,8 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                     onClick={() => {
                       setProjectId(project.id);
                       handleNavigation();
+                      // Call the utility function
+                      cleanupProjectUrlParams(router, pathname, searchParams);
                     }}
                   >
                     <div>
@@ -95,7 +101,15 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                     <SidebarMenuItem>
                       <Link
                         href="/projects"
-                        onClick={handleNavigation}
+                        onClick={() => {
+                          handleNavigation();
+                          // Call the utility function
+                          cleanupProjectUrlParams(
+                            router,
+                            pathname,
+                            searchParams,
+                          );
+                        }}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
                       >
                         <FolderKanban className="h-4 w-4" />

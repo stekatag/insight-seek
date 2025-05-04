@@ -1,4 +1,6 @@
+import type { createProjectTask } from "@/trigger/createProject";
 import { ProjectCreationStatus } from "@prisma/client";
+import { tasks } from "@trigger.dev/sdk/v3";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -82,7 +84,6 @@ export const projectRouter = createTRPCRouter({
         input.branch,
         githubToken,
       );
-      console.log(`Accurate file count for charging: ${fileCount}`);
 
       if (user.credits < fileCount) {
         throw new TRPCError({
@@ -118,31 +119,12 @@ export const projectRouter = createTRPCRouter({
 
       try {
         // Wait for the indexing to complete with the specified branch
-        console.log(`Starting source code indexing for project ${project.id}`);
-
-        // Set a timeout promise to handle long-running indexing
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(
-              new Error(
-                "Indexing timeout, but project was created successfully",
-              ),
-            );
-          }, 300000); // 5 minutes timout
-        });
-
-        // Race the indexing process against the timeout
-        await Promise.race([
-          indexGithubRepo(
-            project.id,
-            input.githubUrl,
-            input.branch,
-            githubToken,
-          ),
-          timeoutPromise,
-        ]);
-
-        console.log(`Source code indexing completed for project ${project.id}`);
+        await indexGithubRepo(
+          project.id,
+          input.githubUrl,
+          input.branch,
+          githubToken,
+        );
       } catch (error) {
         console.error(`Error during repository indexing:`, error);
 
@@ -379,7 +361,7 @@ export const projectRouter = createTRPCRouter({
       }
     }),
 
-  // New endpoint to get repository validation status
+  // Get validation status (used for polling by frontend)
   getValidationStatus: protectedProdecure
     .input(
       z.object({
@@ -411,73 +393,51 @@ export const projectRouter = createTRPCRouter({
       return validationResult;
     }),
 
-  // New endpoint to start project creation process
+  // Start the project creation process by triggering the background task
   startProjectCreation: protectedProdecure
     .input(
       z.object({
         name: z.string(),
-        githubUrl: z.string(),
+        githubUrl: z.string().url(),
         branch: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.userId!;
+      let projectCreationId: string | null = null;
+      let needsTrigger = true;
 
       try {
-        // First, check if a record with these details already exists
-        const existingRecord = await ctx.db.projectCreation.findFirst({
+        // Check if a ProjectCreation record already exists for this exact combination
+        const existingCreation = await ctx.db.projectCreation.findUnique({
           where: {
-            userId,
-            name: input.name,
-            githubUrl: input.githubUrl,
-            branch: input.branch,
+            userId_githubUrl_branch_name: {
+              userId,
+              githubUrl: input.githubUrl,
+              branch: input.branch,
+              name: input.name,
+            },
           },
         });
 
-        let projectCreation;
-
-        if (existingRecord) {
-          // If completed with a projectId, check if the project still exists
+        if (existingCreation) {
           if (
-            existingRecord.status === ProjectCreationStatus.COMPLETED &&
-            existingRecord.projectId
+            existingCreation.status === ProjectCreationStatus.INITIALIZING ||
+            existingCreation.status ===
+              ProjectCreationStatus.CREATING_PROJECT ||
+            existingCreation.status === ProjectCreationStatus.INDEXING
           ) {
-            // Check if the project still exists
-            const project = await ctx.db.project.findUnique({
-              where: { id: existingRecord.projectId },
-            });
-
-            if (project) {
-              // Project exists, we can just return the existing record
-              return {
-                success: true,
-                projectCreationId: existingRecord.id,
-                message: "Project creation record already exists",
-              };
-            }
-          }
-
-          // If the existing record is in an ERROR or COMPLETED state, we can re-use it
-          if (
-            existingRecord.status === ProjectCreationStatus.ERROR ||
-            existingRecord.status === ProjectCreationStatus.COMPLETED
-          ) {
-            // Update the existing record to INITIALIZING to start again
-            projectCreation = await ctx.db.projectCreation.update({
-              where: { id: existingRecord.id },
-              data: {
-                status: ProjectCreationStatus.INITIALIZING,
-                error: null, // Clear any previous error
-                updatedAt: new Date(), // Update the timestamp
-              },
-            });
+            projectCreationId = existingCreation.id;
+            needsTrigger = false;
           } else {
-            // If it's still in progress, just return the existing ID
-            projectCreation = existingRecord;
+            await ctx.db.projectCreation.delete({
+              where: { id: existingCreation.id },
+            });
           }
-        } else {
-          // No existing record, create a new one
-          projectCreation = await ctx.db.projectCreation.create({
+        }
+
+        if (!projectCreationId) {
+          const newProjectCreation = await ctx.db.projectCreation.create({
             data: {
               userId,
               name: input.name,
@@ -486,23 +446,63 @@ export const projectRouter = createTRPCRouter({
               status: ProjectCreationStatus.INITIALIZING,
             },
           });
+          projectCreationId = newProjectCreation.id;
+          needsTrigger = true;
+        }
+
+        if (needsTrigger && projectCreationId) {
+          const handle = await tasks.trigger<typeof createProjectTask>(
+            "create-project",
+            {
+              userId,
+              name: input.name,
+              githubUrl: input.githubUrl,
+              branch: input.branch,
+              projectCreationId: projectCreationId,
+            },
+          );
         }
 
         return {
           success: true,
-          projectCreationId: projectCreation.id,
-          message: "Project creation initialized",
+          projectCreationId: projectCreationId,
+          message: needsTrigger
+            ? "Project creation task triggered successfully."
+            : "Project creation already in progress.",
         };
       } catch (error) {
-        console.error("Error starting project creation:", error);
+        console.error("Error in startProjectCreation mutation:", error);
+        if (projectCreationId && needsTrigger) {
+          try {
+            await ctx.db.projectCreation.update({
+              where: { id: projectCreationId },
+              data: {
+                status: ProjectCreationStatus.ERROR,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to trigger creation task.",
+              },
+            });
+          } catch (dbError) {
+            console.error(
+              `Failed to update ProjectCreation ${projectCreationId} to ERROR:`,
+              dbError,
+            );
+          }
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to start project creation",
+          message:
+            error instanceof Error && (error as any).code === "P2002"
+              ? "A project creation process with this exact name, repository, and branch might already exist or recently failed."
+              : "Failed to start project creation task.",
+          cause: error,
         });
       }
     }),
 
-  // New endpoint to get project creation status
+  // Get project creation status (remains the same)
   getProjectCreationStatus: protectedProdecure
     .input(z.object({ projectCreationId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -513,7 +513,7 @@ export const projectRouter = createTRPCRouter({
         const creationStatus = await ctx.db.projectCreation.findUnique({
           where: {
             id: input.projectCreationId,
-            userId, // Ensure it belongs to the current user
+            userId,
           },
         });
 

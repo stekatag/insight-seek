@@ -12,8 +12,6 @@ import "react-circular-progressbar/dist/styles.css";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
 import {
   AlertCircle,
   Check,
@@ -45,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { triggerMeetingProcessingAction } from "@/app/actions/meetingActions";
 
 import { Spinner } from "./ui/spinner";
 
@@ -57,23 +56,11 @@ export default function MeetingCard() {
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
-  const [fileUrl, setFileUrl] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const refetch = useRefetch();
 
   const uploadMeeting = api.meeting.uploadMeeting.useMutation();
   const checkCredits = api.meeting.checkMeetingCredits.useMutation();
-
-  const processMeeting = useMutation({
-    mutationFn: async (data: { meetingUrl: string; meetingId: string }) => {
-      const { meetingUrl, meetingId } = data;
-      const response = await axios.post("/api/process-meeting", {
-        audio_url: meetingUrl,
-        meetingId,
-      });
-      return response.data;
-    },
-  });
 
   const getDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
@@ -105,11 +92,9 @@ export default function MeetingCard() {
       setSelectedFile(file as File);
 
       try {
-        // Get audio duration
         const duration = await getDuration(file as File);
         setAudioDuration(duration);
 
-        // Calculate credits needed
         const durationMinutes = getDurationMinutes(duration);
         checkCredits.mutate(
           { durationMinutes },
@@ -118,13 +103,15 @@ export default function MeetingCard() {
               setShowCreditCheck(true);
             },
             onError: (error) => {
-              toast.error("Failed to check credits required");
+              toast.error("Failed to check credits required.");
+              // Keep console.error for debugging
+              console.error("Credit check error:", error);
             },
           },
         );
       } catch (error) {
-        toast.error("Failed to read audio file");
-        console.error(error);
+        toast.error("Failed to read audio file metadata.");
+        console.error("Error getting audio duration:", error);
         setSelectedFile(null);
       }
     },
@@ -147,22 +134,19 @@ export default function MeetingCard() {
 
     setShowCreditCheck(false);
     setIsUploading(true);
+    const fileNameForToast = selectedFile.name; // Store filename for toasts
 
     try {
-      // Get Firebase token from Clerk with better error handling
       let firebaseToken;
       try {
-        firebaseToken = await getToken({
-          template: "integration_firebase",
-        });
-
+        firebaseToken = await getToken({ template: "integration_firebase" });
         if (!firebaseToken) {
-          throw new Error("Failed to get Firebase token - token is null");
+          throw new Error("Firebase token is null.");
         }
       } catch (error) {
-        console.error("Firebase token error:", error);
+        console.error("Firebase token retrieval error:", error);
         toast.error(
-          "Authentication failed. Please ensure Firebase integration is enabled in Clerk.",
+          "Authentication error. Please ensure Firebase is set up correctly.",
         );
         setIsUploading(false);
         return;
@@ -175,13 +159,10 @@ export default function MeetingCard() {
         firebaseToken,
       )) as string;
 
-      setFileUrl(downloadURL);
-
-      // Calculate credits to charge
+      // Create meeting record and charge credits
       const durationMinutes = getDurationMinutes(audioDuration);
       const creditsToCharge = calculateMeetingCredits(durationMinutes);
 
-      // Create meeting and charge credits
       uploadMeeting.mutate(
         {
           meetingUrl: downloadURL,
@@ -190,28 +171,46 @@ export default function MeetingCard() {
           creditsToCharge,
         },
         {
-          onSuccess: (meeting) => {
+          onSuccess: async (meeting) => {
+            // Use filename in toast
             toast.success("Meeting uploaded successfully!");
 
-            // Process the meeting
-            processMeeting
-              .mutateAsync({
-                meetingUrl: downloadURL,
+            try {
+              // Call the Server Action to trigger the processing task
+              const actionResult = await triggerMeetingProcessingAction({
                 meetingId: meeting.id,
-              })
-              .then(() => {
-                router.push("/meetings");
-                // Refetch meetings data
-                refetch();
+                meetingUrl: downloadURL,
               });
+
+              if (actionResult.success && actionResult.runId) {
+                // More user-friendly info toast
+                toast.info(
+                  "Meeting analysis started. This may take a few minutes. You can leave this page.",
+                );
+                router.push("/meetings");
+                refetch();
+              } else {
+                throw new Error(
+                  actionResult.error || "Failed to start meeting analysis.",
+                );
+              }
+            } catch (triggerError) {
+              console.error(
+                "Error triggering meeting processing action:",
+                triggerError,
+              );
+              toast.error(
+                "Failed to start meeting analysis. Please try again later.",
+              );
+            }
           },
           onError: (error) => {
             if (error.message.includes("Insufficient credits")) {
-              toast.error("Not enough credits to upload this meeting");
+              toast.error("Not enough credits to upload this meeting.");
             } else {
-              toast.error("Failed to upload meeting");
+              toast.error("Failed to save meeting details.");
             }
-            console.error(error);
+            console.error("Error during meeting upload mutation:", error);
           },
           onSettled: () => {
             setIsUploading(false);
@@ -221,8 +220,8 @@ export default function MeetingCard() {
         },
       );
     } catch (error) {
-      toast.error("Failed to upload file");
-      console.error(error);
+      toast.error("File upload failed. Please try again.");
+      console.error("Error during file upload process:", error);
       setIsUploading(false);
       setSelectedFile(null);
       setAudioDuration(0);

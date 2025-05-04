@@ -24,7 +24,9 @@ const getValidatedRedirectUrl = (param: string | null): string | null => {
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
-  const redirectUrlParam = searchParams.get("redirectUrl");
+  const redirectUrlParam = searchParams
+    ? searchParams.get("redirectUrl")
+    : null;
   const validatedRedirectUrl = getValidatedRedirectUrl(redirectUrlParam);
 
   // Use the validated URL if present, otherwise default to /dashboard

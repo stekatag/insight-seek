@@ -59,7 +59,7 @@ export default function AskQuestionCard({
 
   // Handle URL param changes for direct chat links
   useEffect(() => {
-    const chatId = searchParams.get("chat");
+    const chatId = searchParams?.get("chat");
 
     // Only handle our own saved chats
     if (chatId && state.savedChat?.id === chatId) {

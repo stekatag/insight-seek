@@ -37,9 +37,9 @@ function CreatePageContent() {
   const searchParams = useSearchParams();
 
   // Check for GitHub connection status in URL params
-  const githubConnected = searchParams.get("github_connected") === "true";
-  const setupAction = searchParams.get("setup_action");
-  const githubError = searchParams.get("error");
+  const githubConnected = searchParams?.get("github_connected") === "true";
+  const setupAction = searchParams?.get("setup_action");
+  const githubError = searchParams?.get("error");
 
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(formSchema),
@@ -88,13 +88,14 @@ function CreatePageContent() {
           userId={user?.id}
           onSuccess={(projectId) => {
             // Store the newly created project ID in localStorage
+            // No longer strictly needed with query param, but keep for potential direct refresh handling
             localStorage.setItem("lastCreatedProject", projectId);
 
             // Trigger refetch of projects
             refetch();
 
-            // Redirect to dashboard without parameters
-            router.push("/dashboard");
+            // Redirect to dashboard WITH the new=true query parameter
+            router.push(`/dashboard?project=${projectId}&new=true`);
           }}
         />
       </Form>
