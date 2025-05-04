@@ -62,7 +62,7 @@ export default function CommitLog() {
   const refetchCountRef = useRef(0);
 
   // Calculate dynamic refetch interval based on pending summaries
-  const refetchInterval = hasPendingSummaries ? 5000 : false; // Only poll actively if summaries are pending
+  const refetchInterval = hasPendingSummaries ? 3000 : false; // Only poll actively if summaries are pending
 
   // Fetch commits using TRPC
   const {
@@ -116,7 +116,7 @@ export default function CommitLog() {
             refetch();
             // Reset the flag after attempting the refetch
             refreshInProgressRef.current = false;
-          }, 5000); // 5-second delay
+          }, 3000); // 3-second delay
         } else {
           console.error(
             `Failed to trigger commit processing for project ${projectId}:`,
@@ -248,7 +248,7 @@ export default function CommitLog() {
               setIsReindexing(false);
               toast.error("Error checking reindex status");
             }
-          }, 7000);
+          }, 5000);
 
           // Safety cleanup after 15 minutes
           setTimeout(
