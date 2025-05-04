@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Commit } from "@prisma/client";
 import { formatDistanceToNow } from "date-fns";
 import {
   CreditCard,
@@ -54,6 +55,8 @@ export default function CommitLog() {
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
   const [isReindexing, setIsReindexing] = useState(false);
   const globalRefetch = useRefetch();
+  // State to track if the initial load process was triggered for this instance
+  const [isInitialLoadInProgress, setIsInitialLoadInProgress] = useState(false);
 
   // Add a ref to track if a refresh is already in progress to prevent duplicate requests
   const refreshInProgressRef = useRef(false);
@@ -61,8 +64,16 @@ export default function CommitLog() {
   // Track how many refetches we've done for this commit refresh
   const refetchCountRef = useRef(0);
 
-  // Calculate dynamic refetch interval based on pending summaries
-  const refetchInterval = hasPendingSummaries ? 3000 : false; // Only poll actively if summaries are pending
+  // Define refetchInterval calculation logic here (will use typed commits later)
+  const calculateRefetchInterval = (
+    pending: boolean,
+    initialLoad: boolean,
+    commitCount: number,
+  ): number | false => {
+    if (pending) return 5000;
+    if (initialLoad && commitCount === 0) return 7000;
+    return false;
+  };
 
   // Fetch commits using TRPC
   const {
@@ -73,15 +84,16 @@ export default function CommitLog() {
     { projectId },
     {
       enabled: !!projectId,
-      refetchInterval,
+      // We'll set the actual interval dynamically later based on typed commits
+      refetchInterval: false, // Temporary placeholder
       staleTime: 2500, // Keep data fresh for 2.5 seconds
       refetchOnWindowFocus: true,
       refetchOnMount: true,
     },
   );
 
-  // Destructure commit data
-  const commits = useMemo(
+  // Destructure commit data and ensure correct typing
+  const commits: Commit[] = useMemo(
     () => commitsData?.commits || [],
     [commitsData?.commits],
   );
@@ -89,6 +101,54 @@ export default function CommitLog() {
     commitCount: 0,
     fileCount: 0,
   };
+
+  // Now calculate the actual refetch interval using typed data
+  const refetchInterval = useMemo(
+    () =>
+      calculateRefetchInterval(
+        hasPendingSummaries,
+        isInitialLoadInProgress,
+        commits.length,
+      ),
+    [hasPendingSummaries, isInitialLoadInProgress, commits.length],
+  );
+
+  // Effect to update the query's refetchInterval when our calculated value changes
+  // This is a bit more complex but ensures type safety
+  useEffect(() => {
+    // How to update useQuery's interval? React Query doesn't directly support changing
+    // refetchInterval dynamically after initialization via a simple state update.
+    // The standard way is to let the query refetch based on its config
+    // and our logic controls the *display* and *polling trigger state*.
+    // We'll keep the refetchInterval calculation for our logic (like the useEffect below)
+    // but won't try to dynamically update the useQuery option itself.
+    // The polling happens because the useQuery hook *reruns* when its dependencies change,
+    // and we use the calculated interval in effects.
+
+    // Let's adjust the polling logic slightly:
+    // If interval is set (meaning we want polling), we trigger manual refetches
+    // This gives us more control than relying on the hook's internal interval timing.
+    let pollTimeoutId: NodeJS.Timeout | null = null;
+
+    const poll = () => {
+      if (refetchInterval) {
+        refetch();
+        pollTimeoutId = setTimeout(poll, refetchInterval);
+      }
+    };
+
+    // Start polling immediately if needed
+    if (refetchInterval) {
+      pollTimeoutId = setTimeout(poll, refetchInterval);
+    }
+
+    // Cleanup function to stop polling when interval becomes false or component unmounts
+    return () => {
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+      }
+    };
+  }, [refetchInterval, refetch]);
 
   // --- Centralized Function to Trigger Refresh ---
   const triggerRefresh = useCallback(
@@ -110,13 +170,13 @@ export default function CommitLog() {
         if (result.success) {
           toast.success("Commit check started. New data will appear shortly.");
           setLastRefreshTime(Date.now());
-          // Schedule a refetch after a short delay to update the UI
-          // especially after the initial trigger.
+          // Schedule a refetch after a longer delay to update the UI
+          // especially after the initial trigger, giving backend more time.
           setTimeout(() => {
             refetch();
             // Reset the flag after attempting the refetch
             refreshInProgressRef.current = false;
-          }, 3000); // 3-second delay
+          }, 7000); // 7-second delay
         } else {
           console.error(
             `Failed to trigger commit processing for project ${projectId}:`,
@@ -141,17 +201,16 @@ export default function CommitLog() {
     triggerRefresh(false);
   };
 
-  // Initial load/refresh logic - SIMPLIFIED
+  // Initial load/refresh logic
   const initialCheckPerformed = useRef(false);
 
   useEffect(() => {
-    // Ensure router and pathname are available
     if (!projectId || !router || !pathname || initialCheckPerformed.current) {
       return;
     }
 
-    // Determine if this is the initial load based on query/localStorage
-    const isInitialLoad = (() => {
+    // Determine if this is potentially the first load based on query/localStorage
+    const isPotentialInitialLoad = (() => {
       const newParam = searchParams?.get("new");
       if (newParam === "true") return true;
       const lastCreated = localStorage.getItem("lastCreatedProject");
@@ -162,16 +221,17 @@ export default function CommitLog() {
     if (!isLoading && !refreshInProgressRef.current) {
       initialCheckPerformed.current = true;
 
-      // Trigger the appropriate refresh type
-      triggerRefresh(isInitialLoad);
+      if (isPotentialInitialLoad) {
+        // Mark that the initial load process is starting for this instance
+        setIsInitialLoadInProgress(true);
+        // Trigger the initial processing
+        triggerRefresh(true);
 
-      // If this was the *actual* initial load, clear the indicators
-      if (isInitialLoad) {
+        // --- Clean up indicators AFTER triggering ---
         // Clear localStorage
         if (localStorage.getItem("lastCreatedProject") === projectId) {
           localStorage.removeItem("lastCreatedProject");
         }
-
         // Remove 'new' query param from URL without reload
         const currentSearchParams = new URLSearchParams(
           searchParams?.toString(),
@@ -180,9 +240,12 @@ export default function CommitLog() {
           currentSearchParams.delete("new");
           const queryString = currentSearchParams.toString();
           const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-          // Use replace to avoid adding to browser history
           router.replace(newUrl, { scroll: false });
         }
+        // --- End Cleanup ---
+      } else {
+        // If not the initial load, trigger a standard refresh check
+        triggerRefresh(false);
       }
     }
   }, [projectId, isLoading, triggerRefresh, router, pathname, searchParams]);
@@ -190,7 +253,7 @@ export default function CommitLog() {
   // Check for pending summaries and update polling state
   useEffect(() => {
     const pending = commits?.some(
-      (commit) => commit.summary === "Processing...",
+      (commit: Commit) => commit.summary === "Processing...",
     );
     if (pending !== hasPendingSummaries) {
       setHasPendingSummaries(!!pending);
@@ -326,13 +389,13 @@ export default function CommitLog() {
       <div className="rounded-lg border p-8 text-center">
         <h2 className="mb-2 text-xl font-semibold">No Commits Found</h2>
         <p className="mb-6 text-muted-foreground">
-          We couldn't find any commits for this project yet.
-          {isNewProject
-            ? " Initial analysis is likely in progress. The list will update automatically."
-            : " Try refreshing or check your repository URL."}
+          {/* Use the new state to show the correct message */}
+          {isInitialLoadInProgress
+            ? "Initial analysis is likely in progress. The list will update automatically."
+            : "We couldn't find any commits for this project yet. Try refreshing or check your repository URL."}
         </p>
-        {/* Only show refresh button if it's NOT a new project */}
-        {!isNewProject && (
+        {/* Only show refresh button if it's NOT the initial load in progress */}
+        {!isInitialLoadInProgress && (
           <Button
             onClick={handleRefreshCommits}
             disabled={refreshInProgressRef.current || isLoading}
@@ -502,7 +565,7 @@ export default function CommitLog() {
 
       {/* Actual commits list */}
       <ul role="list" className="space-y-6">
-        {commits.map((commit, commitIdx) => (
+        {commits.map((commit: Commit, commitIdx: number) => (
           <li key={commit.id} className="relative flex gap-x-2 sm:gap-x-4">
             <div
               className={cn(
