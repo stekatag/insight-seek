@@ -262,21 +262,32 @@ export const TRUNCATION_LIMITS = {
 };
 
 /**
- * Cleans up specific query parameters ('project', 'new') from the URL
- * using Next.js App Router's router.replace.
+ * Cleans up URL search parameters when selecting a project,
+ * ensuring only the 'project' parameter for the selected project remains.
  */
 export function cleanupProjectUrlParams(
   router: AppRouterInstance,
   pathname: string | null,
-  searchParams: ReadonlyURLSearchParams | null,
+  currentSearchParams: ReadonlyURLSearchParams | null,
+  newProjectId: string | null,
 ) {
-  if (!pathname || !searchParams) return; // Guard against null values
+  if (!pathname) return; // Only need pathname now
 
-  const currentParams = new URLSearchParams(searchParams.toString());
-  // Check if both params exist
-  if (currentParams.has("project") && currentParams.has("new")) {
-    // Replace the URL without the params.
-    // scroll: false prevents jumping to the top.
-    router.replace(pathname, { scroll: false });
+  // 1. Define the target search params
+  const targetParams = new URLSearchParams();
+  if (newProjectId) {
+    targetParams.set("project", newProjectId);
+  }
+
+  // 2. Get current search params string (handle null)
+  const currentParamsString = currentSearchParams?.toString() || "";
+
+  // 3. Compare target params string with current params string
+  if (targetParams.toString() !== currentParamsString) {
+    // 4. Navigate to the cleaned URL if different
+    const newUrl = newProjectId
+      ? `${pathname}?${targetParams.toString()}`
+      : pathname;
+    router.replace(newUrl, { scroll: false });
   }
 }

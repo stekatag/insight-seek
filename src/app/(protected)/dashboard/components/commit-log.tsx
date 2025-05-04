@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
   CreditCard,
@@ -34,6 +34,8 @@ import {
 
 export default function CommitLog() {
   const { projectId, project } = useProject();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   // Check if this is a newly created project from query param
@@ -108,25 +110,30 @@ export default function CommitLog() {
         if (result.success) {
           toast.success("Commit check started. New data will appear shortly.");
           setLastRefreshTime(Date.now());
+          // Schedule a refetch after a short delay to update the UI
+          // especially after the initial trigger.
           setTimeout(() => {
             refetch();
+            // Reset the flag after attempting the refetch
             refreshInProgressRef.current = false;
-          }, 3000);
+          }, 5000); // 5-second delay
         } else {
           console.error(
             `Failed to trigger commit processing for project ${projectId}:`,
             result.error,
           );
           toast.error(result.error || "Failed to start commit check.");
-          refreshInProgressRef.current = false;
+          refreshInProgressRef.current = false; // Reset on failure
         }
+        // Reset refreshInProgressRef only after the action fails or after the success timeout
+        // Note: The reset on success happens inside the setTimeout above.
       } catch (error) {
         console.error("Error triggering commit processing action:", error);
         toast.error("Failed to check commits due to an unexpected error.");
-        refreshInProgressRef.current = false;
+        refreshInProgressRef.current = false; // Reset on error
       }
     },
-    [projectId, refetch],
+    [projectId, refetch], // refetch is still needed for polling setup
   );
 
   // Handle refresh button click
@@ -138,47 +145,47 @@ export default function CommitLog() {
   const initialCheckPerformed = useRef(false);
 
   useEffect(() => {
-    if (!projectId || initialCheckPerformed.current) return;
+    // Ensure router and pathname are available
+    if (!projectId || !router || !pathname || initialCheckPerformed.current) {
+      return;
+    }
 
-    // This effect runs on mount and when projectId/isLoading/commits change.
-    // We only want to perform the *initial* check logic ONCE.
+    // Determine if this is the initial load based on query/localStorage
+    const isInitialLoad = (() => {
+      const newParam = searchParams?.get("new");
+      if (newParam === "true") return true;
+      const lastCreated = localStorage.getItem("lastCreatedProject");
+      return lastCreated === projectId;
+    })();
 
+    // Only run the trigger logic once per mount if not loading and not already refreshing
     if (!isLoading && !refreshInProgressRef.current) {
-      // Mark that we've performed the initial check now
       initialCheckPerformed.current = true;
 
-      if (commits.length === 0) {
-        // If loading is done and there are NO commits,
-        // assume this is the first load and trigger a refresh.
-        // Use the isNewProject flag derived from query param / localStorage
-        triggerRefresh(isNewProject); // Pass the flag
-      } else {
-        // If commits *are* present on first load, we might still need to clear the localStorage flag
-        // if the user navigated here via direct refresh instead of the standard flow
+      // Trigger the appropriate refresh type
+      triggerRefresh(isInitialLoad);
+
+      // If this was the *actual* initial load, clear the indicators
+      if (isInitialLoad) {
+        // Clear localStorage
         if (localStorage.getItem("lastCreatedProject") === projectId) {
           localStorage.removeItem("lastCreatedProject");
         }
-        // ALSO trigger a standard refresh check when commits are already loaded on mount
-        triggerRefresh(false);
-      }
-    }
-    // Cleanup: We don't need to manage the query param, it's part of the URL state.
-    // The localStorage flag is handled above.
-  }, [projectId, isLoading, commits, triggerRefresh, isNewProject]);
 
-  // Effect to clear localStorage flag once initial processing seems complete
-  useEffect(() => {
-    if (isNewProject && commits.length > 0 && !hasPendingSummaries) {
-      // If it was a new project, we have commits, and none are pending
-      if (localStorage.getItem("lastCreatedProject") === projectId) {
-        console.log(
-          "Initial processing appears complete, clearing localStorage flag and refetching.",
+        // Remove 'new' query param from URL without reload
+        const currentSearchParams = new URLSearchParams(
+          searchParams?.toString(),
         );
-        localStorage.removeItem("lastCreatedProject");
-        refetch(); // Manually refetch commits here
+        if (currentSearchParams.has("new")) {
+          currentSearchParams.delete("new");
+          const queryString = currentSearchParams.toString();
+          const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+          // Use replace to avoid adding to browser history
+          router.replace(newUrl, { scroll: false });
+        }
       }
     }
-  }, [isNewProject, commits.length, hasPendingSummaries, projectId, refetch]); // Add refetch to dependency array
+  }, [projectId, isLoading, triggerRefresh, router, pathname, searchParams]);
 
   // Check for pending summaries and update polling state
   useEffect(() => {
@@ -189,8 +196,8 @@ export default function CommitLog() {
       setHasPendingSummaries(!!pending);
       // If we just finished processing, trigger one final refetch immediately
       if (!pending && hasPendingSummaries) {
-        // Reset refetch in progress flag before final refetch
-        refreshInProgressRef.current = false;
+        // Resetting the flag is now handled in triggerRefresh
+        // refreshInProgressRef.current = false;
         refetch();
       }
     }

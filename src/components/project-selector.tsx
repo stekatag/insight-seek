@@ -150,7 +150,12 @@ export function ProjectSelector({ className }: { className?: string }) {
                       setProjectId(currentValue);
                       setOpen(false);
                       setSearchQuery("");
-                      cleanupProjectUrlParams(router, pathname, searchParams);
+                      cleanupProjectUrlParams(
+                        router,
+                        pathname,
+                        searchParams,
+                        project.id,
+                      );
                     }}
                     className="flex items-center justify-between"
                   >

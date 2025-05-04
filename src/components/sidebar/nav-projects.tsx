@@ -73,8 +73,12 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                     onClick={() => {
                       setProjectId(project.id);
                       handleNavigation();
-                      // Call the utility function
-                      cleanupProjectUrlParams(router, pathname, searchParams);
+                      cleanupProjectUrlParams(
+                        router,
+                        pathname,
+                        searchParams,
+                        project.id,
+                      );
                     }}
                   >
                     <div>
@@ -103,11 +107,12 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                         href="/projects"
                         onClick={() => {
                           handleNavigation();
-                          // Call the utility function
+                          // When navigating to /projects, ensure no params remain
                           cleanupProjectUrlParams(
                             router,
-                            pathname,
+                            "/projects", // Target pathname is /projects
                             searchParams,
+                            null, // No project ID needed for this navigation
                           );
                         }}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
