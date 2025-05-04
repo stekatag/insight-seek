@@ -72,7 +72,7 @@ export default function CommitLog() {
     {
       enabled: !!projectId,
       refetchInterval,
-      staleTime: 5000, // Keep data fresh for 5 seconds
+      staleTime: 2500, // Keep data fresh for 2.5 seconds
       refetchOnWindowFocus: true,
       refetchOnMount: true,
     },
