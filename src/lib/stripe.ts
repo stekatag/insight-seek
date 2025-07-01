@@ -2,11 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import Stripe from "stripe";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-05-28.basil",
-});
+import { stripe } from "@/lib/stripe-config";
 
 export async function createCheckoutSession(
   credits: number,
