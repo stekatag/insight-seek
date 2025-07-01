@@ -5,9 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30.basil",
-});
+import { stripe } from "@/lib/stripe";
 
 export async function POST(request: Request) {
   const body = await request.text();
