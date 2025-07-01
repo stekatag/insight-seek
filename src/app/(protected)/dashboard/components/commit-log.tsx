@@ -157,18 +157,17 @@ export default function CommitLog() {
         return;
       }
       refreshInProgressRef.current = true;
-      toast.info(
-        isInitialLoad
-          ? "Starting initial commit analysis..."
-          : "Checking for new commits...",
-      );
+
+      if (isInitialLoad) {
+        toast.info("Starting initial commit analysis...");
+      }
+
       try {
         const result = await triggerCommitProcessingAction({
           projectId,
           isProjectCreation: isInitialLoad,
         });
         if (result.success) {
-          toast.success("Commit check started. New data will appear shortly.");
           setLastRefreshTime(Date.now());
           // Schedule a refetch after a longer delay to update the UI
           // especially after the initial trigger, giving backend more time.
