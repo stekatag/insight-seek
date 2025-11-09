@@ -35,7 +35,7 @@ export function HeroImage() {
         <div className="w-full md:w-[1200px] h-[600px] mx-auto rounded-lg bg-muted/30 border border-t-2 border-secondary border-t-primary/30 animate-pulse"></div>
       )}
 
-      <div className="absolute bottom-0 left-0 w-full h-20 md:h-28 bg-gradient-to-b from-background/0 via-background/50 to-background rounded-lg"></div>
+      <div className="absolute bottom-0 left-0 w-full h-20 md:h-28 bg-linear-to-b from-background/0 via-background/50 to-background rounded-lg"></div>
     </div>
   );
 }

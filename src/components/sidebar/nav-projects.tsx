@@ -68,7 +68,7 @@ export default function NavProjects({ handleNavigation }: NavProjectsProps) {
                 <SidebarMenuItem key={project.id}>
                   <SidebarMenuButton
                     size={open ? "default" : "lg"}
-                    className={`${!open ? "!p-0 flex justify-center" : ""}`}
+                    className={`${!open ? "p-0! flex justify-center" : ""}`}
                     asChild
                     onClick={() => {
                       setProjectId(project.id);

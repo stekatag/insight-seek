@@ -77,7 +77,7 @@ export default function BillingPage() {
 
           <TabsContent
             value="packages"
-            className="mt-6 focus-visible:outline-none focus-visible:ring-0"
+            className="mt-6 focus-visible:outline-hidden focus-visible:ring-0"
           >
             <PackageCards
               packages={creditPackages}
@@ -89,7 +89,7 @@ export default function BillingPage() {
 
           <TabsContent
             value="custom"
-            className="py-4 focus-visible:outline-none focus-visible:ring-0"
+            className="py-4 focus-visible:outline-hidden focus-visible:ring-0"
           >
             <CustomCreditAmount
               creditAmount={creditsToBuy}

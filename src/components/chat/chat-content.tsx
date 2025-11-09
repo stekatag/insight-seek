@@ -87,7 +87,7 @@ const ChatQuestionItem = memo(
       <div className="space-y-4">
         {/* User Question */}
         <div className="flex justify-end gap-3">
-          <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
+          <div className="max-w-[75%] wrap-break-word rounded-lg bg-primary p-4 text-primary-foreground">
             <p>{qa.question}</p>
           </div>
           <Avatar className="h-8 w-8 shrink-0 border">
@@ -106,7 +106,7 @@ const ChatQuestionItem = memo(
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
               <Bot className="h-4 w-4 text-primary" />
             </div>
-            <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow border">
+            <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow-sm border">
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
@@ -270,7 +270,7 @@ function ChatContent({
           <div className="space-y-4">
             {/* User Question */}
             <div className="flex justify-end gap-3">
-              <div className="max-w-[75%] break-words rounded-lg bg-primary p-4 text-primary-foreground">
+              <div className="max-w-[75%] wrap-break-word rounded-lg bg-primary p-4 text-primary-foreground">
                 <p>{streamQuestion}</p>
               </div>
               <Avatar className="h-8 w-8 shrink-0 border">
@@ -292,7 +292,7 @@ function ChatContent({
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
-                <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow border">
+                <div className="max-w-[85%] rounded-lg bg-card p-4 overflow-hidden shadow-sm border">
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                     <span>Getting answer...</span>

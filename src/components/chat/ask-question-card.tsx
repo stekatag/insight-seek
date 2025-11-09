@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useReducer } from "react";
 import { useSearchParams } from "next/navigation";
-import { readStreamableValue } from "ai/rsc";
+import { readStreamableValue } from "@ai-sdk/rsc";
 import { Bot, Info, Sparkles, Undo } from "lucide-react";
 import { toast } from "sonner";
 

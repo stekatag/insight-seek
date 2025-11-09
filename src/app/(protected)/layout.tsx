@@ -18,7 +18,7 @@ export default function SidebarLayout({ children }: Props) {
       <main className="flex w-full flex-col">
         <TopBar />
         {/* main content */}
-        <div className="m-2 min-h-[calc(100vh-5.25rem)] rounded-md border border-sidebar-border bg-sidebar p-4 shadow">
+        <div className="m-2 min-h-[calc(100vh-5.25rem)] rounded-md border border-sidebar-border bg-sidebar p-4 shadow-sm">
           {children}
         </div>
       </main>

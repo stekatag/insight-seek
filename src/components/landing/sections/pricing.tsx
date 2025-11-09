@@ -110,7 +110,7 @@ export const PricingSection = () => {
               </div>
             </CardHeader>
 
-            <CardContent className="flex-grow space-y-6 text-sm sm:text-base">
+            <CardContent className="grow space-y-6 text-sm sm:text-base">
               <div>
                 <p className="text-xl sm:text-2xl font-bold text-primary">
                   {pkg.credits.toLocaleString()} credits
@@ -122,14 +122,14 @@ export const PricingSection = () => {
 
               <div className="space-y-3">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <Check className="text-primary h-4 w-4 flex-shrink-0" />
+                  <Check className="text-primary h-4 w-4 shrink-0" />
                   <span className="flex items-center">
                     Up to {pkg.projectCount} project
                     {pkg.projectCount > 1 ? "s" : ""}
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Info className="ml-1 h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help flex-shrink-0" />
+                          <Info className="ml-1 h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help shrink-0" />
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-[200px]">
                           Average project requires ~100 credits
@@ -139,13 +139,13 @@ export const PricingSection = () => {
                   </span>
                 </div>
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <Check className="text-primary h-4 w-4 flex-shrink-0" />
+                  <Check className="text-primary h-4 w-4 shrink-0" />
                   <span className="flex items-center">
                     ~{pkg.meetingMinutes} min of meetings
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Info className="ml-1 h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help flex-shrink-0" />
+                          <Info className="ml-1 h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help shrink-0" />
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-[200px]">
                           ~2.5 credits per minute of audio
@@ -159,8 +159,8 @@ export const PricingSection = () => {
                     key={feature}
                     className="flex items-center gap-1 sm:gap-2"
                   >
-                    <Check className="text-primary h-4 w-4 flex-shrink-0" />
-                    <span className="break-words">{feature}</span>
+                    <Check className="text-primary h-4 w-4 shrink-0" />
+                    <span className="wrap-break-word">{feature}</span>
                   </div>
                 ))}
               </div>

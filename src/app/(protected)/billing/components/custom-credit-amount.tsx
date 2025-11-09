@@ -83,7 +83,7 @@ export function CustomCreditAmount({
 
       <div className="rounded-md bg-muted p-4">
         <div className="flex items-start gap-2">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <Info className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>

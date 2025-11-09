@@ -41,7 +41,7 @@ export default function AuthLayout({
       </div>
 
       {/* Simple mobile background - a subtle gradient */}
-      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-background to-background/95 lg:hidden" />
+      <div className="fixed inset-0 -z-10 bg-linear-to-b from-background to-background/95 lg:hidden" />
 
       {/* Header with logo */}
       <header className="container flex justify-center sm:justify-start pt-6 px-4">
@@ -129,7 +129,7 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 rounded-lg bg-card border dark:border-secondary shadow-sm">
+    <div className="flex items-start gap-3 p-4 rounded-lg bg-card border dark:border-secondary shadow-xs">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         {icon}
       </div>

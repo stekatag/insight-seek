@@ -51,7 +51,7 @@ export function CollapsibleContent({
           className={cn(
             "flex justify-center pt-2",
             !isExpanded &&
-              "absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent pt-8",
+              "absolute bottom-0 left-0 right-0 h-16 bg-linear-to-t from-background to-transparent pt-8",
           )}
         >
           <Button
@@ -59,7 +59,7 @@ export function CollapsibleContent({
             type="button"
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 border bg-background text-muted-foreground shadow-sm hover:text-foreground"
+            className="flex items-center gap-1 border bg-background text-muted-foreground shadow-xs hover:text-foreground"
           >
             {isExpanded ? (
               <>

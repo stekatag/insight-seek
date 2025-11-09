@@ -438,7 +438,7 @@ export default function CommitLog() {
             </p>
             <div className="mt-1 flex flex-col gap-2 rounded-md bg-blue-100 p-3 text-sm dark:bg-blue-900/30">
               <div className="flex items-start gap-2">
-                <FileCode className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <FileCode className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
                 <p>
                   This will use{" "}
                   <span className="font-semibold">{creditsNeeded} credits</span>{" "}
@@ -446,7 +446,7 @@ export default function CommitLog() {
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <CreditCard className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
                 <div>
                   Your current balance:{" "}
                   {isLoadingCredits ? (
@@ -607,7 +607,7 @@ export default function CommitLog() {
                 </time>
               </div>
               <span
-                className="mb-2 block break-words font-semibold"
+                className="mb-2 block wrap-break-word font-semibold"
                 title={commit.commitMessage}
               >
                 {formatTechnicalText(
@@ -625,7 +625,7 @@ export default function CommitLog() {
                   <span>Generating summary...</span>
                 </div>
               ) : (
-                <div className="break-words text-sm leading-6 text-secondary-foreground/70 dark:text-secondary-foreground/50">
+                <div className="wrap-break-word text-sm leading-6 text-secondary-foreground/70 dark:text-secondary-foreground/50">
                   {formatCodeFragments(commit.summary || "Summary unavailable")}
                 </div>
               )}

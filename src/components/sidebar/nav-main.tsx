@@ -33,7 +33,7 @@ export default function NavMain({ handleNavigation }: NavMainProps) {
                 <Link
                   href={item.url}
                   className={cn({
-                    "!bg-primary !text-white": pathname === item.url,
+                    "bg-primary! text-white!": pathname === item.url,
                   })}
                 >
                   <item.icon />

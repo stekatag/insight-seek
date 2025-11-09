@@ -81,7 +81,7 @@ export function PackageCards({
             </div>
           </CardHeader>
 
-          <CardContent className="flex-grow">
+          <CardContent className="grow">
             <p className="mb-4 text-2xl font-bold text-primary">
               {pkg.credits.toLocaleString()} credits
             </p>

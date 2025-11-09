@@ -2,7 +2,7 @@
 export const clerkElementsStyle = {
   cardBox: "shadow-md lg:shadow-lg border dark:border-secondary",
   formButtonPrimary:
-    "bg-primary hover:bg-primary/90 text-primary-foreground normal-case font-medium !shadow-none",
+    "bg-primary hover:bg-primary/90 text-primary-foreground normal-case font-medium shadow-none!",
   socialButtonsBlockButton:
     "border-border hover:bg-muted dark:hover:bg-background text-foreground normal-case font-normal bg-white dark:bg-secondary",
   card: "bg-card",

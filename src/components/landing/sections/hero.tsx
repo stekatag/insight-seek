@@ -20,7 +20,7 @@ const ActionButton = ({ href, text }: { href: string; text: string }) => (
 export const HeroSection = () => {
   return (
     <section className="container w-full">
-      <div className="grid place-items-center lg:max-w-screen-xl gap-8 mx-auto py-20 md:py-32">
+      <div className="grid place-items-center lg:max-w-(--breakpoint-xl) gap-8 mx-auto py-20 md:py-32">
         <div className="text-center space-y-8">
           <Badge variant="outline" className="text-sm py-2">
             <span className="mr-2 text-primary">
@@ -29,16 +29,16 @@ export const HeroSection = () => {
             <span> Meeting Analysis Now Available! </span>
           </Badge>
 
-          <div className="max-w-screen-md mx-auto text-center text-4xl md:text-6xl font-bold">
+          <div className="max-w-(--breakpoint-md) mx-auto text-center text-4xl md:text-6xl font-bold">
             <h1>
               AI Analysis for
-              <span className="text-transparent px-2 bg-gradient-to-r from-[#D247BF] to-primary bg-clip-text">
+              <span className="text-transparent px-2 bg-linear-to-r from-[#D247BF] to-primary bg-clip-text">
                 Code & Meetings
               </span>
             </h1>
           </div>
 
-          <p className="max-w-screen-sm mx-auto text-xl text-muted-foreground dark:text-gray-400">
+          <p className="max-w-(--breakpoint-sm) mx-auto text-xl text-muted-foreground dark:text-gray-400">
             {`Understand your GitHub repositories and team meetings with AI-powered insights. 
             Ask questions about your code, analyze commits, and extract actionable insights from meetings.`}
           </p>

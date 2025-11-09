@@ -20,7 +20,7 @@ export const CTASection = () => {
             </div>
             <h2 className="text-3xl font-bold md:text-4xl lg:text-5xl">
               Ready to{" "}
-              <span className="text-transparent bg-gradient-to-r from-[#D247BF] to-primary bg-clip-text">
+              <span className="text-transparent bg-linear-to-r from-[#D247BF] to-primary bg-clip-text">
                 enhance
               </span>{" "}
               your development workflow?

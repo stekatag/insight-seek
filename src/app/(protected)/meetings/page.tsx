@@ -212,7 +212,7 @@ export default function MeetingsPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <TooltipProvider>
+                      <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div>

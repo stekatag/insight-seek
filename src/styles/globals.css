@@ -1,9 +1,29 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-html {
-  scroll-behavior: smooth;
+@config '../../tailwind.config.ts';
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer utilities {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 @layer base {
@@ -108,3 +128,14 @@ html {
     @apply bg-background text-foreground;
   }
 }
+
+@source inline("text-blue-500");
+@source inline("text-green-500");
+@source inline("text-yellow-500");
+@source inline("text-indigo-500");
+@source inline("text-purple-500");
+@source inline("text-amber-500");
+@source inline("text-red-500");
+@source inline("text-pink-500");
+@source inline("text-orange-500");
+@source inline("shadow-none!");

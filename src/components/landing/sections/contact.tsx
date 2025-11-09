@@ -143,7 +143,7 @@ export const ContactSection = () => {
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="grid w-full gap-4"
               >
-                <div className="flex flex-col md:!flex-row gap-8">
+                <div className="flex flex-col md:flex-row! gap-8">
                   <FormField
                     control={form.control}
                     name="firstName"

@@ -144,7 +144,7 @@ export default function CodeReferences({
   if (localLoading) {
     return (
       <div className="w-full">
-        <div className="scrollbar-hide mb-2 flex gap-2 overflow-auto rounded-md border bg-muted p-1 shadow-sm">
+        <div className="scrollbar-hide mb-2 flex gap-2 overflow-auto rounded-md border bg-muted p-1 shadow-xs">
           <Skeleton className="h-8 w-20" />
           <Skeleton className="h-8 w-24" />
         </div>
@@ -168,7 +168,7 @@ export default function CodeReferences({
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <div className="scrollbar-hide mb-2 flex gap-2 overflow-auto rounded-md border bg-muted p-1 shadow-sm">
+      <div className="scrollbar-hide mb-2 flex gap-2 overflow-auto rounded-md border bg-muted p-1 shadow-xs">
         {filesReferences.map((file) => (
           <button
             key={file.fileName}

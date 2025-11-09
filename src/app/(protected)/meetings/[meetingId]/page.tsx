@@ -10,7 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { readStreamableValue } from "ai/rsc";
+import { readStreamableValue } from '@ai-sdk/rsc';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -317,7 +317,7 @@ function MeetingDetailContent() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-12">
           {/* Sidebar with chat history - adjusted column width at different breakpoints */}
           <div className="col-span-1 lg:col-span-3 xl:col-span-3 2xl:col-span-2">
-            <div className="p-4 bg-card rounded-lg border dark:border-secondary shadow-sm">
+            <div className="p-4 bg-card rounded-lg border dark:border-secondary shadow-xs">
               <h3 className="mb-3 font-medium">Conversations</h3>
 
               {chatsLoading ? (

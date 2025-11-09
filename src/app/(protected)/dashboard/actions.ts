@@ -3,7 +3,7 @@
 import { db } from "@/server/db";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText } from "ai";
-import { createStreamableValue } from "ai/rsc";
+import { createStreamableValue } from '@ai-sdk/rsc';
 
 import { generateEmbedding } from "@/lib/gemini";
 

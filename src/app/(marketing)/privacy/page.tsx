@@ -63,7 +63,7 @@ export default function PrivacyPolicyPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 2. Information We Collect
               </h2>
-              <div className="bg-card border dark:border-secondary rounded-lg p-6 shadow-sm">
+              <div className="bg-card border dark:border-secondary rounded-lg p-6 shadow-xs">
                 <h3 className="text-xl font-medium mb-3">
                   Personal Information
                 </h3>
@@ -84,7 +84,7 @@ export default function PrivacyPolicyPage() {
                 </ul>
               </div>
 
-              <div className="bg-card border dark:border-secondary rounded-lg p-6 shadow-sm mt-4">
+              <div className="bg-card border dark:border-secondary rounded-lg p-6 shadow-xs mt-4">
                 <h3 className="text-xl font-medium mb-3">
                   Automatically Collected Information
                 </h3>
@@ -218,7 +218,7 @@ export default function PrivacyPolicyPage() {
                 no longer need your data, we will securely delete or anonymize
                 it.
               </p>
-              <div className="bg-card border dark:border-secondary rounded-lg p-5 shadow-sm">
+              <div className="bg-card border dark:border-secondary rounded-lg p-5 shadow-xs">
                 <h4 className="font-medium mb-2">
                   Specific Retention Periods:
                 </h4>
@@ -377,7 +377,7 @@ export default function PrivacyPolicyPage() {
               </p>
             </section>
 
-            <section className="bg-primary/5 border border-primary/20 rounded-lg p-6 shadow-sm">
+            <section className="bg-primary/5 border border-primary/20 rounded-lg p-6 shadow-xs">
               <h2 className="text-2xl font-semibold mb-4">9. Contact Us</h2>
               <p className="text-muted-foreground mb-4">
                 If you have any questions about this Privacy Policy, please

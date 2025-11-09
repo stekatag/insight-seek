@@ -209,7 +209,7 @@ export default memo(function ChatList({
               return (
                 <div
                   key={chat.id}
-                  className="group flex w-full cursor-pointer items-start gap-3 rounded-lg border border-primary/20 p-3 shadow bg-card hover:bg-secondary dark:bg-background dark:hover:bg-primary/10 hover:transition"
+                  className="group flex w-full cursor-pointer items-start gap-3 rounded-lg border border-primary/20 p-3 shadow-sm bg-card hover:bg-secondary dark:bg-background dark:hover:bg-primary/10 hover:transition"
                 >
                   <div
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10"
@@ -228,14 +228,14 @@ export default memo(function ChatList({
                     }}
                   >
                     <div className="flex flex-col">
-                      <p className="line-clamp-1 break-words text-sm font-medium text-gray-700 dark:text-gray-200">
+                      <p className="line-clamp-1 wrap-break-word text-sm font-medium text-gray-700 dark:text-gray-200">
                         {chat.title}
                       </p>
                       <span className="text-xs text-gray-400">
                         {new Date(chat.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-1 break-words text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-1 line-clamp-1 wrap-break-word text-xs text-gray-500 dark:text-gray-400">
                       {messageCount} message{messageCount !== 1 ? "s" : ""}
                     </p>
                   </div>
@@ -290,7 +290,7 @@ export default memo(function ChatList({
           return (
             <div
               key={chat.id}
-              className="group flex w-full cursor-pointer items-start gap-3 rounded-lg border border-primary/20 p-4 shadow bg-card hover:bg-secondary dark:bg-background dark:hover:bg-primary/10 hover:transition"
+              className="group flex w-full cursor-pointer items-start gap-3 rounded-lg border border-primary/20 p-4 shadow-sm bg-card hover:bg-secondary dark:bg-background dark:hover:bg-primary/10 hover:transition"
             >
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"
@@ -303,7 +303,7 @@ export default memo(function ChatList({
                 onClick={() => handleChatClick(chat)}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <p className="line-clamp-1 break-words text-lg font-medium text-gray-700 dark:text-gray-200">
+                  <p className="line-clamp-1 wrap-break-word text-lg font-medium text-gray-700 dark:text-gray-200">
                     {chat.title}
                   </p>
                   <span className="shrink-0 text-xs text-gray-400 sm:ml-2">
@@ -312,7 +312,7 @@ export default memo(function ChatList({
                     })}
                   </span>
                 </div>
-                <p className="mt-1 line-clamp-1 break-words text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 line-clamp-1 wrap-break-word text-sm text-gray-500 dark:text-gray-400">
                   {messageCount} message{messageCount !== 1 ? "s" : ""}
                 </p>
               </div>

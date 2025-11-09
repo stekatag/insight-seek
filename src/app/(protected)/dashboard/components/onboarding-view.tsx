@@ -93,7 +93,7 @@ export default function OnboardingView() {
                   key={index}
                   className="flex sm:items-center flex-col sm:flex-row gap-4 rounded-lg border dark:border-secondary p-4 transition-colors hover:bg-muted/50"
                 >
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
                     <item.icon className="h-6 w-6 text-primary" />
                   </div>
                   <div className="flex-1 space-y-1 min-w-0">

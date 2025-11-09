@@ -128,7 +128,7 @@ function ChatDialog({ messagesEndRef, onFollowUpSubmit }: ChatDialogProps) {
                 {isTempChat && " (Preview)"}
               </DrawerTitle>
             </DrawerHeader>
-            <div className="flex-grow overflow-hidden">
+            <div className="grow overflow-hidden">
               <ChatContent
                 chat={activeChat}
                 messagesEndRef={messagesEndRef}
@@ -157,7 +157,7 @@ function ChatDialog({ messagesEndRef, onFollowUpSubmit }: ChatDialogProps) {
             {isTempChat && " (Preview)"}
           </SheetTitle>
         </SheetHeader>
-        <div className="flex-grow overflow-hidden">
+        <div className="grow overflow-hidden">
           <ChatContent
             chat={activeChat}
             messagesEndRef={messagesEndRef}

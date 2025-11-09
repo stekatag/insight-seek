@@ -37,7 +37,7 @@ export const TestimonialSection = () => {
         opts={{
           align: "start",
         }}
-        className="relative w-[80%] sm:w-[90%] lg:max-w-screen-xl mx-auto"
+        className="relative w-[80%] sm:w-[90%] lg:max-w-(--breakpoint-xl) mx-auto"
       >
         <CarouselContent className="py-1">
           {reviewList.map((review) => (
