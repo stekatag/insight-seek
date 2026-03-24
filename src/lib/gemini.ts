@@ -80,9 +80,15 @@ export async function summarizeCode(doc: Document) {
 
 export async function generateEmbedding(summary: string) {
   const model = genAI.getGenerativeModel({
-    model: "text-embedding-004",
+    model: "gemini-embedding-001",
   });
-  const result = await model.embedContent(summary);
+  const result = await model.embedContent({
+    content: {
+      role: "user",
+      parts: [{ text: summary }],
+    },
+    outputDimensionality: 768,
+  } as any);
   const embedding = result.embedding;
   return embedding.values;
 }

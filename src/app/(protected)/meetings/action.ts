@@ -2,8 +2,8 @@
 
 import { db } from "@/server/db";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createStreamableValue } from "@ai-sdk/rsc";
 import { streamText } from "ai";
-import { createStreamableValue } from '@ai-sdk/rsc';
 
 import { generateEmbedding } from "@/lib/gemini";
 
@@ -468,7 +468,7 @@ export async function askMeeting(
 
   (async () => {
     const { textStream } = await streamText({
-      model: google("gemini-2.0-flash-001"),
+      model: google("gemini-3.1-flash-lite-preview"),
       prompt: promptTemplate,
       temperature,
     });
