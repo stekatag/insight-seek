@@ -11,7 +11,6 @@ export default {
     "<THIRD_PARTY_MODULES>",
     "",
     "^types$",
-    "^@/env(.*)$",
     "^@/types/(.*)$",
     "^@/config/(.*)$",
     "^@/trpc/(.*)$",
