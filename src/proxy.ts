@@ -20,6 +20,7 @@ const runClerkProxy = async (request: NextRequest, event: NextFetchEvent) => {
     console.log("[proxy] request", {
       pathname: request.nextUrl.pathname,
       hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY),
+      hasClerkEncryptionKey: Boolean(process.env.CLERK_ENCRYPTION_KEY),
       hasClerkPublishableKey: Boolean(
         process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
       ),
@@ -55,6 +56,7 @@ export default async function proxy(
     console.error("[proxy] clerk middleware failed", {
       pathname: request.nextUrl.pathname,
       hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY),
+      hasClerkEncryptionKey: Boolean(process.env.CLERK_ENCRYPTION_KEY),
       error,
     });
     throw error;
