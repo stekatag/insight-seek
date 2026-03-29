@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import type { processCommitsTask } from "@/trigger/processCommits";
 import type { reindexCommitsTask } from "@/trigger/reindexCommits";
 import { auth } from "@clerk/nextjs/server";
-import { tasks } from "@trigger.dev/sdk/v3";
+import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 // Input schema for the server action

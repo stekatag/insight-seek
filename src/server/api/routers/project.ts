@@ -1,6 +1,6 @@
 import type { createProjectTask } from "@/trigger/createProject";
 import { ProjectCreationStatus } from "@prisma/client";
-import { tasks } from "@trigger.dev/sdk/v3";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 

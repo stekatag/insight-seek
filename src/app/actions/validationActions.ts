@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import type { validateRepositoryTask } from "@/trigger/validateRepository";
 import { auth } from "@clerk/nextjs/server";
 import { ValidationStatus } from "@prisma/client";
-import { tasks } from "@trigger.dev/sdk/v3";
+import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 // Input schema for the server action

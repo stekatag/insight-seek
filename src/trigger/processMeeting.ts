@@ -1,7 +1,7 @@
 import { db } from "@/server/db";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { MeetingStatus, type Issue } from "@prisma/client";
-import { logger, schemaTask } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask } from "@trigger.dev/sdk";
 import pLimit from "p-limit";
 import { z } from "zod";
 

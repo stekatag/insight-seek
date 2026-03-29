@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { ProjectCreationStatus } from "@prisma/client";
-import { logger, schemaTask } from "@trigger.dev/sdk/v3";
+import { logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 import { getInstallationToken } from "@/lib/github-app";

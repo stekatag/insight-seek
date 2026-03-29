@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { auth as triggerAuth } from "@trigger.dev/sdk/v3";
+import { auth as triggerAuth } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 // Input schema for the action
