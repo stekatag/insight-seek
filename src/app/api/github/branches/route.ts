@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { auth } from "@clerk/nextjs/server";
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "octokit";
 
+import { getClerkAuth } from "@/lib/clerk-server";
+
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
+  const { userId } = await getClerkAuth();
 
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

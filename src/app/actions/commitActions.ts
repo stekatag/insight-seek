@@ -3,9 +3,10 @@
 import { db } from "@/server/db";
 import type { processCommitsTask } from "@/trigger/processCommits";
 import type { reindexCommitsTask } from "@/trigger/reindexCommits";
-import { auth } from "@clerk/nextjs/server";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
+
+import { getClerkAuth } from "@/lib/clerk-server";
 
 // Input schema for the server action
 const actionInputSchema = z.object({
@@ -17,7 +18,7 @@ export async function triggerCommitProcessingAction(input: {
   projectId: string;
   isProjectCreation?: boolean;
 }) {
-  const { userId } = await auth(); // Assuming auth() needs await based on previous attempts
+  const { userId } = await getClerkAuth();
   if (!userId) {
     console.error("Commit Processing Action Error: User not authenticated.");
     return { success: false, error: "Authentication required." };
@@ -88,7 +89,7 @@ export async function triggerReindexCommitsAction(input: {
   githubUrl: string;
   commitIds: string[];
 }) {
-  const { userId } = await auth();
+  const { userId } = await getClerkAuth();
   if (!userId) {
     console.error("Reindex Commits Action Error: User not authenticated.");
     return { success: false, error: "Authentication required." };

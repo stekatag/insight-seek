@@ -2,10 +2,11 @@
 
 import { db } from "@/server/db";
 import type { validateRepositoryTask } from "@/trigger/validateRepository";
-import { auth } from "@clerk/nextjs/server";
 import { ValidationStatus } from "@prisma/client";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
+
+import { getClerkAuth } from "@/lib/clerk-server";
 
 // Input schema for the server action
 const actionInputSchema = z.object({
@@ -23,7 +24,7 @@ export async function requestRepositoryValidationAction(input: {
   runId: string | null; // Changed from validationId
 }> {
   // Await auth() and then get userId
-  const authResult = await auth();
+  const authResult = await getClerkAuth();
   const userId = authResult?.userId;
 
   if (!userId) {

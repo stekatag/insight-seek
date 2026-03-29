@@ -1,15 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
 
+import { getClerkAuth } from "@/lib/clerk-server";
 import { stripe } from "@/lib/stripe-config";
 
 export async function createCheckoutSession(
   credits: number,
   priceOverride?: number,
 ) {
-  const { userId } = await auth();
+  const { userId } = await getClerkAuth();
 
   if (!userId) {
     throw new Error("User not found");

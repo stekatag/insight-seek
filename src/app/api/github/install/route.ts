@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+
+import { getClerkAuth } from "@/lib/clerk-server";
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
+  const { userId } = await getClerkAuth();
 
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
