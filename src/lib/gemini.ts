@@ -1,10 +1,13 @@
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Document } from "@langchain/core/documents";
+import { embed } from "ai";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
+const google = createGoogleGenerativeAI({ apiKey });
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
+  model: "gemini-3.1-flash-lite-preview",
 });
 
 export async function aiSummarizeCommit(diffData: string): Promise<string> {
@@ -79,18 +82,17 @@ export async function summarizeCode(doc: Document) {
 }
 
 export async function generateEmbedding(summary: string) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-embedding-001",
-  });
-  const result = await model.embedContent({
-    content: {
-      role: "user",
-      parts: [{ text: summary }],
+  const { embedding } = await embed({
+    model: google.textEmbedding("text-embedding-005"),
+    value: summary,
+    providerOptions: {
+      google: {
+        outputDimensionality: 768,
+      },
     },
-    outputDimensionality: 768,
-  } as any);
-  const embedding = result.embedding;
-  return embedding.values;
+  });
+
+  return embedding;
 }
 
 export async function generateMeetingTitle(
