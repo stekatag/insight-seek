@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server"; // Import NextRequest
 import { db } from "@/server/db";
-
-import { getClerkAuth, getClerkClient } from "@/lib/clerk-server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 
 // Route handler for GET requests to /sync-user
 export async function GET(request: NextRequest) {
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Perform async operations
-  const { userId } = await getClerkAuth();
+  const { userId } = await auth();
   if (!userId) {
     console.error("SyncUser Route: User not found during sync");
     // Redirect to sign-in or return an error response
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const client = await getClerkClient();
+    const client = await clerkClient();
     const user = await client.users.getUser(userId);
 
     if (!user.emailAddresses[0]?.emailAddress) {

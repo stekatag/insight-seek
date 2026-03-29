@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 
 import { Separator } from "@/components/ui/separator";
@@ -66,7 +66,7 @@ export const FooterSection = ({
 
           <div className="flex flex-col gap-2">
             <h3 className="font-bold text-lg">Account</h3>
-            <SignedIn>
+            <Show when="signed-in">
               <div>
                 <Link
                   href="/dashboard"
@@ -85,8 +85,8 @@ export const FooterSection = ({
                   Meetings
                 </Link>
               </div>
-            </SignedIn>
-            <SignedOut>
+            </Show>
+            <Show when="signed-out">
               <div>
                 <Link href="/sign-in" className="opacity-60 hover:opacity-100">
                   Sign In
@@ -97,7 +97,7 @@ export const FooterSection = ({
                   Get Started
                 </Link>
               </div>
-            </SignedOut>
+            </Show>
           </div>
         </div>
 

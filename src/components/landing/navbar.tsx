@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
+import { Show, useClerk } from "@clerk/nextjs";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { ChevronsDown, Menu } from "lucide-react";
 
@@ -151,7 +151,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                 {/* Authentication links for mobile */}
                 <Separator className="my-2" />
 
-                <SignedIn>
+                <Show when="signed-in">
                   {signedInRoutes.map(({ href, label, variant = "ghost" }) => (
                     <Button
                       key={label}
@@ -172,9 +172,9 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                       )}
                     </Button>
                   ))}
-                </SignedIn>
+                </Show>
 
-                <SignedOut>
+                <Show when="signed-out">
                   {signedOutRoutes.map(({ href, label, variant = "ghost" }) => (
                     <Button
                       key={href}
@@ -186,7 +186,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                       <Link href={href}>{label}</Link>
                     </Button>
                   ))}
-                </SignedOut>
+                </Show>
               </div>
             </div>
 
@@ -233,7 +233,7 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
         {/* <!-- Desktop Authentication --> */}
         <NavigationMenu className="hidden lg:block mx-auto">
           <NavigationMenuList>
-            <SignedIn>
+            <Show when="signed-in">
               {signedInRoutes.map(({ href, label, variant = "ghost" }) => (
                 <NavigationMenuItem key={label}>
                   <NavigationMenuLink asChild={label !== "Sign Out"}>
@@ -249,9 +249,9 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               ))}
-            </SignedIn>
+            </Show>
 
-            <SignedOut>
+            <Show when="signed-out">
               {signedOutRoutes.map(({ href, label, variant = "ghost" }) => (
                 <NavigationMenuItem key={href}>
                   <NavigationMenuLink asChild>
@@ -261,19 +261,14 @@ export const Navbar = ({ currentPath = "/" }: NavbarProps) => {
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               ))}
-            </SignedOut>
+            </Show>
           </NavigationMenuList>
         </NavigationMenu>
 
         <div className="flex gap-2 items-center">
           <ToggleTheme />
 
-          <Button
-            asChild
-            variant="outline"
-            size="icon"
-            aria-label="View on GitHub"
-          >
+          <Button asChild size="icon">
             <Link
               aria-label="View on GitHub"
               href="https://github.com/stekatag/insight-seek"

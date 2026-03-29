@@ -7,11 +7,10 @@
  * need to use are documented accordingly near the end.
  */
 import { db } from "@/server/db";
+import { auth } from "@clerk/nextjs/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-
-import { getClerkAuth } from "@/lib/clerk-server";
 
 /**
  * 1. CONTEXT
@@ -84,7 +83,7 @@ const isAuthenticated = t.middleware(async ({ next, ctx, path }) => {
   let user;
 
   try {
-    user = await getClerkAuth();
+    user = await auth();
   } catch (error) {
     console.error("[trpc-auth] auth failed", {
       path,

@@ -1,4 +1,4 @@
-import type { NextFetchEvent, NextRequest } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const publicRoutes = [
   "/",
@@ -10,63 +10,13 @@ const publicRoutes = [
   "/privacy",
 ];
 
-const shouldLogProxyRequest = (pathname: string) =>
-  pathname.startsWith("/api/trpc") ||
-  pathname.startsWith("/projects") ||
-  pathname.startsWith("/dashboard");
+const isPublicRoute = createRouteMatcher(publicRoutes);
 
-const getClerkPublishableKey = () =>
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-  process.env.CLERK_PUBLISHABLE_KEY;
-
-const getClerkDynamicOptions = () => ({
-  secretKey: process.env.CLERK_SECRET_KEY,
-  publishableKey: getClerkPublishableKey(),
-  signInUrl: "/sign-in",
-  signUpUrl: "/sign-up",
-  clockSkewInMs: 10_000,
+export default clerkMiddleware(async (auth, request) => {
+  if (!isPublicRoute(request)) {
+    await auth.protect();
+  }
 });
-
-const runClerkProxy = async (request: NextRequest, event: NextFetchEvent) => {
-  if (shouldLogProxyRequest(request.nextUrl.pathname)) {
-    console.log("[proxy] request", {
-      pathname: request.nextUrl.pathname,
-      hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY),
-      hasClerkEncryptionKey: Boolean(process.env.CLERK_ENCRYPTION_KEY),
-      hasClerkPublishableKey: Boolean(getClerkPublishableKey()),
-    });
-  }
-
-  const { clerkMiddleware, createRouteMatcher } =
-    await import("@clerk/nextjs/server");
-
-  const isPublicRoute = createRouteMatcher(publicRoutes);
-
-  const proxy = clerkMiddleware(async (auth, currentRequest) => {
-    if (!isPublicRoute(currentRequest)) {
-      await auth.protect();
-    }
-  }, getClerkDynamicOptions);
-
-  return proxy(request, event);
-};
-
-export default async function proxy(
-  request: NextRequest,
-  event: NextFetchEvent,
-) {
-  try {
-    return await runClerkProxy(request, event);
-  } catch (error) {
-    console.error("[proxy] clerk middleware failed", {
-      pathname: request.nextUrl.pathname,
-      hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY),
-      hasClerkEncryptionKey: Boolean(process.env.CLERK_ENCRYPTION_KEY),
-      error,
-    });
-    throw error;
-  }
-}
 
 export const config = {
   matcher: [

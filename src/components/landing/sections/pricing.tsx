@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import { Check, CreditCard, Info } from "lucide-react";
 
 import { createCheckoutSession } from "@/lib/stripe";
@@ -167,7 +167,7 @@ export const PricingSection = () => {
             </CardContent>
 
             <CardFooter className="mt-auto pt-4">
-              <SignedIn>
+              <Show when="signed-in">
                 <Button
                   variant={pkg.highlighted ? "default" : "secondary"}
                   className="w-full text-xs sm:text-sm"
@@ -177,8 +177,8 @@ export const PricingSection = () => {
                   <CreditCard className=" h-4 w-4" />
                   <span>Buy Now</span>
                 </Button>
-              </SignedIn>
-              <SignedOut>
+              </Show>
+              <Show when="signed-out">
                 <Button
                   variant={pkg.highlighted ? "default" : "secondary"}
                   className="w-full text-xs sm:text-sm"
@@ -187,7 +187,7 @@ export const PricingSection = () => {
                 >
                   <Link href="/sign-up">Get Started</Link>
                 </Button>
-              </SignedOut>
+              </Show>
             </CardFooter>
           </Card>
         ))}
@@ -198,16 +198,16 @@ export const PricingSection = () => {
           Need a custom amount? Create an account and choose exactly how many
           credits you need.
         </p>
-        <SignedOut>
+        <Show when="signed-out">
           <Button variant="outline" asChild>
             <Link href="/sign-up">Create Account</Link>
           </Button>
-        </SignedOut>
-        <SignedIn>
+        </Show>
+        <Show when="signed-in">
           <Button variant="outline" asChild>
             <Link href="/billing#purchase">View Custom Options</Link>
           </Button>
-        </SignedIn>
+        </Show>
       </div>
     </section>
   );

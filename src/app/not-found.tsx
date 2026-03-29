@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { SignedIn } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import { DashboardIcon } from "@radix-ui/react-icons";
 import { HomeIcon, Search } from "lucide-react";
 
@@ -25,14 +25,14 @@ export default function NotFound() {
             <span>Home Page</span>
           </Button>
         </Link>
-        <SignedIn>
+        <Show when="signed-in">
           <Link href="/dashboard">
             <Button variant="outline">
               <DashboardIcon className="h-4 w-4" />
               <span>Dashboard</span>
             </Button>
           </Link>
-        </SignedIn>
+        </Show>
       </div>
     </div>
   );

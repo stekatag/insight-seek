@@ -1,10 +1,9 @@
 "use server";
 
 import type { processMeetingTask } from "@/trigger/processMeeting";
+import { auth } from "@clerk/nextjs/server";
 import { tasks } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
-
-import { getClerkAuth } from "@/lib/clerk-server";
 
 // Input schema for the server action
 const actionInputSchema = z.object({
@@ -16,7 +15,7 @@ export async function triggerMeetingProcessingAction(input: {
   meetingId: string;
   meetingUrl: string;
 }) {
-  const { userId } = await getClerkAuth();
+  const { userId } = await auth();
   if (!userId) {
     console.error("Meeting Processing Action Error: User not authenticated.");
     return { success: false, error: "Authentication required." };

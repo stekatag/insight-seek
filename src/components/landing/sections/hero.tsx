@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import { ArrowDown, ArrowRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -44,12 +44,12 @@ export const HeroSection = () => {
           </p>
 
           <div className="space-y-4 md:space-y-0 md:space-x-4">
-            <SignedOut>
+            <Show when="signed-out">
               <ActionButton href="/sign-up" text="Start Analyzing" />
-            </SignedOut>
-            <SignedIn>
+            </Show>
+            <Show when="signed-in">
               <ActionButton href="/dashboard" text="Dashboard" />
-            </SignedIn>
+            </Show>
 
             <Button
               asChild

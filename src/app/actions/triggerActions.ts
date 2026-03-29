@@ -1,9 +1,8 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { auth as triggerAuth } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
-
-import { getClerkAuth } from "@/lib/clerk-server";
 
 // Input schema for the action
 const inputSchema = z.object({
@@ -21,7 +20,7 @@ export async function generateTriggerRunToken(input: {
   error: string | null;
 }> {
   // Ensure user is authenticated (optional but recommended)
-  const authResult = await getClerkAuth();
+  const authResult = await auth();
   if (!authResult?.userId) {
     return {
       success: false,
