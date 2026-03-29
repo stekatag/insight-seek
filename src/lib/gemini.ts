@@ -6,6 +6,7 @@ import { embed } from "ai";
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 const google = createGoogleGenerativeAI({ apiKey });
+const embeddingModel = google.textEmbedding("gemini-embedding-001");
 const model = genAI.getGenerativeModel({
   model: "gemini-3.1-flash-lite-preview",
 });
@@ -83,7 +84,7 @@ export async function summarizeCode(doc: Document) {
 
 export async function generateEmbedding(summary: string) {
   const { embedding } = await embed({
-    model: google.textEmbedding("text-embedding-005"),
+    model: embeddingModel,
     value: summary,
     providerOptions: {
       google: {
