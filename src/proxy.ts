@@ -15,15 +15,25 @@ const shouldLogProxyRequest = (pathname: string) =>
   pathname.startsWith("/projects") ||
   pathname.startsWith("/dashboard");
 
+const getClerkPublishableKey = () =>
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+  process.env.CLERK_PUBLISHABLE_KEY;
+
+const getClerkDynamicOptions = () => ({
+  secretKey: process.env.CLERK_SECRET_KEY,
+  publishableKey: getClerkPublishableKey(),
+  signInUrl: "/sign-in",
+  signUpUrl: "/sign-up",
+  clockSkewInMs: 10_000,
+});
+
 const runClerkProxy = async (request: NextRequest, event: NextFetchEvent) => {
   if (shouldLogProxyRequest(request.nextUrl.pathname)) {
     console.log("[proxy] request", {
       pathname: request.nextUrl.pathname,
       hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY),
       hasClerkEncryptionKey: Boolean(process.env.CLERK_ENCRYPTION_KEY),
-      hasClerkPublishableKey: Boolean(
-        process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-      ),
+      hasClerkPublishableKey: Boolean(getClerkPublishableKey()),
     });
   }
 
@@ -32,16 +42,11 @@ const runClerkProxy = async (request: NextRequest, event: NextFetchEvent) => {
 
   const isPublicRoute = createRouteMatcher(publicRoutes);
 
-  const proxy = clerkMiddleware(
-    async (auth, currentRequest) => {
-      if (!isPublicRoute(currentRequest)) {
-        await auth.protect();
-      }
-    },
-    {
-      clockSkewInMs: 10_000,
-    },
-  );
+  const proxy = clerkMiddleware(async (auth, currentRequest) => {
+    if (!isPublicRoute(currentRequest)) {
+      await auth.protect();
+    }
+  }, getClerkDynamicOptions);
 
   return proxy(request, event);
 };
